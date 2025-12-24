@@ -9,9 +9,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configuration object - modify these values as needed
 const CONFIG = {
-  // OpenAI Configuration
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
     model: 'gpt-4-turbo',
