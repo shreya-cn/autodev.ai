@@ -1,0 +1,151 @@
+= User Management System Architecture Design
+
+== 1. Service Architecture Overview
+
+=== High-level System Architecture Diagram
+
+[plantuml, diagram-architecture, png]
+----
+@startuml
+!define SPRING #SpringGreen
+!define ENTITY #MistyRose
+!define CONTROLLER #DeepSkyBlue
+!define SERVICE #Gold
+
+package "User Management System" {
+  [UsermanagementApplication] << SPRING >>
+  [UserManagementController] << CONTROLLER >>
+  [UserManagementService] << SERVICE >>
+  [UserManagementRepository] << SPRING >>
+  [MobilityUser] << ENTITY >>
+
+  UsermanagementApplication --> UserManagementController
+  UserManagementController --> UserManagementService
+  UserManagementService --> UserManagementRepository
+  UserManagementService --> IdentityProviderClient
+  UserManagementService --> VehicleManagementClient
+  UserManagementRepository --> MobilityUser
+}
+
+[IdentityProviderClient] << SPRING >>
+[VehicleManagementClient] << SPRING >>
+
+cloud {
+  [Identity Provider API] << API >>
+  [Vehicle Management API] << API >>
+}
+
+IdentityProviderClient --> Identity Provider API
+VehicleManagementClient --> Vehicle Management API
+
+@enduml
+----
+
+=== External System Connections and Integrations
+
+- **Identity Provider API**: This external system handles user authentication and authorization. It is integrated via `IdentityProviderClient` using Feign client.
+- **Vehicle Management API**: This external system manages vehicle data. It is integrated via `VehicleManagementClient` also using Feign client.
+
+=== Component Interaction Overview
+
+- **UserManagementController**: Handles HTTP requests and communicates with `UserManagementService` for business operations.
+- **UserManagementService**: Core service layer handling business logic, interacts with `UserManagementRepository` for database operations and external systems through Feign clients.
+- **UserManagementRepository**: Manages database interactions for user data.
+
+=== Technology Stack and Frameworks Used
+
+- **Spring Boot**: Framework for creating stand-alone, production-grade Spring based applications.
+- **Spring Data JPA**: For database operations.
+- **Spring Cloud OpenFeign**: For declarative REST client creation.
+- **H2 Database**: In-memory database for development.
+- **JUnit**: For unit testing.
+
+== 2. Component Description
+
+=== UsermanagementApplication
+
+- **Responsibility**: Bootstraps the Spring Boot application.
+- **Role**: Entry point of the application.
+
+=== UserManagementController
+
+- **Responsibility**: Handles all web requests and delegates to the service layer.
+- **Role**: Web layer component, translates HTTP requests into service calls.
+
+=== UserManagementService
+
+- **Responsibility**: Handles business logic for user and vehicle management.
+- **Role**: Service layer component, interacts with database and external APIs.
+
+=== UserManagementRepository
+
+- **Responsibility**: Abstraction over the data access layer.
+- **Role**: Data access component using Spring Data JPA.
+
+=== MobilityUser
+
+- **Responsibility**: Represents the user entity in the system.
+- **Role**: Domain model, mapped to a database table via JPA.
+
+== 3. Infrastructure Architecture
+
+=== Deployment Architecture
+
+[plantuml, diagram-deployment, png]
+----
+@startuml
+node "Web Server" {
+  [User Management Application]
+}
+
+database "Database" {
+  [User Data]
+}
+
+User Management Application --> Database : JDBC
+@enduml
+----
+
+=== Database Architecture
+
+- **Database System**: H2 in-memory database.
+- **Schema Details**: Consists of the `MobilityUser` table.
+
+=== Security Architecture
+
+- **Authentication**: Integrated with an external Identity Provider.
+- **Authorization**: Managed through roles stored in the user entity.
+
+=== Network Architecture
+
+- **Internal Network**: Communication between application components.
+- **External Network**: Secured connections to external APIs.
+
+== 4. System Context
+
+=== External Systems and Their Interfaces
+
+- **Identity Provider API**: Provides endpoints for user authentication.
+- **Vehicle Management API**: Provides endpoints for vehicle data retrieval.
+
+=== Data Flow Between Systems
+
+[plantuml, diagram-data-flow, png]
+----
+@startuml
+actor User
+User -> UserManagementController : Requests (HTTP)
+UserManagementController -> UserManagementService : Delegates
+UserManagementService -> IdentityProviderClient : Auth Requests
+UserManagementService -> VehicleManagementClient : Vehicle Data Requests
+IdentityProviderClient -> Identity Provider API : API Calls
+VehicleManagementClient -> Vehicle Management API : API Calls
+@enduml
+----
+
+=== Authentication and Authorization Flows at System Level
+
+- **Authentication Flow**: User credentials are validated against the Identity Provider API.
+- **Authorization Flow**: User roles are checked to grant access to specific resources or operations.
+
+This document provides a comprehensive overview of the architecture of the User Management System, suitable for understanding by architects and senior developers.

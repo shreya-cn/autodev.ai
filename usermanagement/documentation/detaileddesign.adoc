@@ -1,0 +1,210 @@
+= User Management System Detailed Design Documentation
+
+== Introduction
+
+This document provides a detailed design overview of the User Management System, which is part of a larger mobility service platform. The system handles user registration, authentication, and vehicle assignment using a microservices architecture with Spring Boot and Java.
+
+== Class-by-Class Analysis
+
+=== UsermanagementApplication
+
+*Purpose*: Serves as the entry point for the Spring Boot application.
+
+*Annotations*:
+- `@EnableFeignClients`: Allows the application to use Feign clients for external HTTP requests.
+- `@SpringBootApplication`: Indicates a configuration class that declares one or more `@Bean` methods and also triggers auto-configuration and component scanning.
+
+*Methods*:
+- `public static void main(String[] args)`: Launches the Spring Boot application.
+
+=== IdentityProviderClient
+
+*Purpose*: Defines a Feign client for interacting with an external identity provider service.
+
+*Annotations*:
+- `@FeignClient`: Declares that this interface is a Feign client.
+- `@PostMapping`: Used on methods to map HTTP POST requests onto specific handler methods.
+- `@RequestBody`: Indicates a method parameter should be bound to the body of the web request.
+
+=== VehicleManagementClient
+
+*Purpose*: Defines a Feign client for interacting with the vehicle management service.
+
+*Annotations*:
+- `@FeignClient`: Marks this interface as a Feign client.
+- `@GetMapping`: Maps HTTP GET requests onto specific handler methods.
+- `@RequestParam`: Indicates a method parameter should be bound to a web request parameter.
+
+=== UserManagementController
+
+*Purpose*: Handles all web requests related to user management, such as user onboarding and vehicle assignment.
+
+*Annotations*:
+- `@RestController`: Marks the class as a controller where every method returns a domain object instead of a view.
+- `@RequestMapping`: Maps web requests onto methods in request-handling classes.
+- `@Autowired`: Marks a constructor, field, setter method, or config method to be autowired by Spring's dependency injection facilities.
+
+*Methods*:
+- `onboardUser(String username, String password)`: Handles the user onboarding process.
+- `assignVehicle(String username, String vin, String brand, String country)`: Assigns a vehicle to a user.
+
+=== MobilityUser
+
+*Purpose*: Represents the user entity in the database.
+
+*Annotations*:
+- `@Entity`: Specifies that the class is an entity and is mapped to a database table.
+- `@Table`: Specifies the table in the database for the entity.
+- `@Id`: Specifies the primary key of an entity.
+- `@GeneratedValue`: Provides for the specification of generation strategies for the values of primary keys.
+- `@Getter` / `@Setter`: Lombok annotations to generate getters and setters automatically.
+
+*Fields*:
+- `id`: Unique identifier for the user.
+- `mobilityUserId`: A unique user identifier in the mobility system.
+- `role`: The user's role within the system.
+- `username`: The user's username.
+- `vin`: Vehicle Identification Number associated with the user.
+
+=== UserManagementRepository
+
+*Purpose*: Interface for database operations related to `MobilityUser`.
+
+=== UserManagementService
+
+*Purpose*: Contains business logic for managing users.
+
+*Annotations*:
+- `@Service`: Indicates that the class holds business logic.
+
+*Methods*:
+- `getUserByUsername(String username)`: Retrieves a user by username.
+- `onboardUser(String username, String password)`: Handles logic for user onboarding.
+- `assignVehicleToUser(String username, String vin, String brand, String country)`: Logic to assign a vehicle to a user.
+
+*Fields*:
+- `identityProvider`: Autowired Feign client for identity management.
+- `repo`: Autowired repository for database interactions.
+- `vehicleClient`: Autowired Feign client for vehicle management.
+
+=== UsermanagementApplicationTests
+
+*Purpose*: Contains tests for the UsermanagementApplication.
+
+*Annotations*:
+- `@SpringBootTest`: Provides Spring Boot test features.
+- `@Test`: Marks a method as a test method.
+
+== Runtime View Diagrams
+
+=== Sequence Diagrams
+
+The following sequence diagrams illustrate key business flows in the system using PlantUML.
+
+==== User Registration Flow
+
+[plantuml, user-registration-sequence, png]
+....
+participant "User" as U
+participant "UserManagementController" as C
+participant "UserManagementService" as S
+participant "IdentityProviderClient" as IPC
+participant "UserManagementRepository" as R
+
+U -> C: onboardUser(username, password)
+C -> S: onboardUser(username, password)
+S -> IPC: createIdentity(username, password)
+IPC -> S: identityCreated
+S -> R: save(user)
+R -> S: userSaved
+S -> C: onboardSuccess
+C -> U: User onboarded successfully
+....
+
+==== Authentication/Login Flow
+
+[plantuml, authentication-sequence, png]
+....
+participant "User" as U
+participant "UserManagementController" as C
+participant "UserManagementService" as S
+participant "IdentityProviderClient" as IPC
+
+U -> C: authenticate(username, password)
+C -> S: authenticateUser(username, password)
+S -> IPC: validateCredentials(username, password)
+IPC -> S: credentialsValid
+S -> C: authenticationSuccess
+C -> U: User authenticated successfully
+....
+
+==== JWT Token Validation Flow
+
+[plantuml, jwt-validation-sequence, png]
+....
+participant "User" as U
+participant "UserManagementController" as C
+participant "UserManagementService" as S
+participant "IdentityProviderClient" as IPC
+
+U -> C: validateToken(jwt)
+C -> S: validateToken(jwt)
+S -> IPC: checkToken(jwt)
+IPC -> S: tokenIsValid
+S -> C: validationSuccess
+C -> U: Token validated successfully
+....
+
+== Entity Relationship Diagram
+
+[plantuml, er-diagram, png]
+....
+entity "MobilityUser" {
+  *id: Long
+  --
+  *mobilityUserId: String
+  *role: String
+  *username: String
+  *vin: String
+}
+....
+
+=== Detailed Description of Entities
+
+*MobilityUser*: Represents a user in the system. It includes an `id` as the primary key, a `mobilityUserId` for unique identification within the mobility system, a `role` to define user privileges, a `username` for login purposes, and a `vin` to associate a vehicle with the user.
+
+== Detailed Component Interactions
+
+=== Controller-Service-Repository Interactions
+
+*UserManagementController*:
+- Receives HTTP requests.
+- Calls methods in *UserManagementService*.
+
+*UserManagementService*:
+- Contains business logic.
+- Calls *IdentityProviderClient* and *VehicleManagementClient* for external interactions.
+- Interacts with *UserManagementRepository* for data persistence.
+
+*UserManagementRepository*:
+- Handles CRUD operations on the database for the `MobilityUser` entity.
+
+=== Data Flow Through Layers
+
+1. HTTP Request -> Controller
+2. Controller -> Service
+3. Service -> External Services/Repository
+4. Repository -> Database
+5. Data returns back through the layers to the user.
+
+=== Exception Propagation
+
+Exceptions are handled at the service layer and are propagated up to the controllers where they are transformed into appropriate HTTP responses.
+
+=== Transaction Boundaries
+
+Transactions are managed at the service layer, ensuring that database operations are completed successfully before ending the transaction.
+
+== Conclusion
+
+This detailed design document provides a comprehensive overview of the User Management System, focusing on class responsibilities, interactions, and the flow of data through the system. This document should assist developers in understanding and maintaining the system.

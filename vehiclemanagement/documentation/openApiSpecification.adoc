@@ -1,0 +1,119 @@
+== Interface Concept
+[id='vehiclemanagement']
+The Vehiclemanagement service provides API operations for managing vehiclemanagement domain resources.
+
+=== vehiclemanagement-external-api
+
+NOTE: A source block marked with class openapi will be wrapped in an OpenAPI Documentation Macro. (see https://marketplace.atlassian.com/apps/1215176/open-api-documentation-for-confluence?hosting=cloud&tab=overview[Open API Documentation for Confluence])!
+
+[source.openapi,yaml]
+----
+openapi: 3.0.0
+info:
+  title: Vehicle Management API
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /vehicle/register:
+    post:
+      tags:
+        - Vehicle
+      summary: Register a new vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Vehicle'
+            examples:
+              example1:
+                value:
+                  brand: Toyota
+                  country: Japan
+                  device: Device123
+                  model: Camry
+                  sop: '2023-01-01'
+                  vin: VIN1234567890
+      responses:
+        '200':
+          description: Vehicle registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Vehicle registered successfully
+        '400':
+          description: Invalid input
+  /vehicle/verify:
+    get:
+      tags:
+        - Vehicle
+      summary: Verify vehicle registration
+      parameters:
+        - in: query
+          name: vin
+          schema:
+            type: string
+          required: true
+          description: Vehicle Identification Number
+        - in: query
+          name: brand
+          schema:
+            type: string
+          required: true
+          description: Brand of the vehicle
+        - in: query
+          name: country
+          schema:
+            type: string
+          required: true
+          description: Country of registration
+      responses:
+        '200':
+          description: Verification successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: Verified
+        '404':
+          description: Vehicle not found
+components:
+  schemas:
+    Vehicle:
+      type: object
+      properties:
+        brand:
+          type: string
+          example: Toyota
+        country:
+          type: string
+          example: Japan
+        device:
+          type: string
+          example: Device123
+        model:
+          type: string
+          example: Camry
+        sop:
+          type: string
+          format: date
+          example: '2023-01-01'
+        vin:
+          type: string
+          example: VIN1234567890
+      required:
+        - brand
+        - country
+        - device
+        - model
+        - sop
+        - vin
+----

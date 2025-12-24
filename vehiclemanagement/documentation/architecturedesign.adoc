@@ -1,0 +1,149 @@
+= Vehicle Management System Architecture Design
+
+:toc:
+:toc-placement: auto
+:icons: font
+:sectnums:
+:sectnumlevels: 5
+
+== 1. Service Architecture Overview
+
+=== 1.1 High-level System Architecture Diagram
+
+[plantuml, "system-architecture", png]
+----
+@startuml
+skinparam componentStyle uml2
+
+package "Vehicle Management System" {
+  [Vehicle Controller] <<RestController>>
+  [Vehicle Service] <<Service>>
+  [Vehicle Repository] <<Repository>>
+  [Vehicle Entity]
+
+  [Vehicle Controller] --> [Vehicle Service] : uses
+  [Vehicle Service] --> [Vehicle Repository] : uses
+  [Vehicle Repository] ..> [Vehicle Entity] : persists
+}
+
+package "External Systems" {
+  [Vehicle Registration Authority API]
+}
+
+[Vehicle Controller] --> [Vehicle Registration Authority API] : verifies registration
+@enduml
+----
+
+=== 1.2 External System Connections and Integrations
+
+The Vehicle Management System integrates with the following external systems:
+
+- **Vehicle Registration Authority API**: This external API is used by the `Vehicle Controller` to verify vehicle registrations and to register new vehicles.
+
+=== 1.3 Component Interaction Overview
+
+The interaction between components is primarily centered around the `Vehicle Controller`, which manages all incoming HTTP requests. It interacts with the `Vehicle Service` for business logic, which in turn uses `Vehicle Repository` to interact with the database. The `Vehicle Repository` is responsible for data persistence operations related to `Vehicle Entity`.
+
+=== 1.4 Technology Stack and Frameworks Used
+
+- **Spring Boot**: Framework for creating stand-alone, production-grade Spring based Applications.
+- **Spring Data JPA**: Provides repository support for the Java Persistence API (JPA).
+- **Hibernate**: ORM framework for data query and retrieval facilities.
+- **MySQL**: Database for storing vehicle data.
+- **Maven**: Dependency management.
+
+== 2. Component Description
+
+=== 2.1 Vehicle Controller
+
+*Responsibility*: Handles all web requests for vehicle registration and verification.
+
+*Role*: Acts as a REST controller, exposing HTTP endpoints.
+
+*Interactions*: Communicates with `Vehicle Service` to process business logic.
+
+*External Dependencies*: Integrates with the Vehicle Registration Authority API for external data verification.
+
+=== 2.2 Vehicle Service
+
+*Responsibility*: Implements the business logic for vehicle registration and verification.
+
+*Role*: Service layer that acts as a bridge between the controller and the repository.
+
+*Interactions*: Uses `Vehicle Repository` to access and manipulate vehicle data.
+
+=== 2.3 Vehicle Repository
+
+*Responsibility*: Manages the persistence of Vehicle entities.
+
+*Role*: Repository layer that abstracts the data layer, providing methods to retrieve and store data.
+
+*Interactions*: Interacts with the database through JPA to perform CRUD operations on `Vehicle Entity`.
+
+=== 2.4 Vehicle Entity
+
+*Responsibility*: Represents the vehicle data in the system.
+
+*Role*: Entity model used by JPA to map the table in the database.
+
+== 3. Infrastructure Architecture
+
+=== 3.1 Deployment Architecture
+
+[plantuml, "deployment-architecture", png]
+----
+@startuml
+skinparam componentStyle uml2
+
+node "Web Server" {
+  [Vehicle Management Application]
+}
+
+database "Database" {
+  [Vehicle Data]
+}
+
+[Vehicle Management Application] --> [Vehicle Data] : reads/writes
+
+cloud "External API" {
+  [Vehicle Registration Authority API]
+}
+
+[Vehicle Management Application] --> [Vehicle Registration Authority API] : interacts
+@enduml
+----
+
+=== 3.2 Database Architecture
+
+*Database*: MySQL
+
+*Tables*:
+- **Vehicle**: Stores vehicle details like brand, model, VIN, etc.
+
+=== 3.3 Security Architecture
+
+*Authentication*: Basic Auth for system access.
+*Authorization*: Role-based access control (RBAC) for different levels of user permissions.
+
+=== 3.4 Network Architecture
+
+*Internal Network*: Secure internal communication within the deployment environment.
+*External Access*: Restricted access through defined APIs with secure HTTPS connections.
+
+== 4. System Context
+
+=== 4.1 External Systems and Their Interfaces
+
+- **Vehicle Registration Authority API**: Provides endpoints for vehicle registration verification and new vehicle registration.
+
+=== 4.2 Data Flow Between Systems
+
+The `Vehicle Controller` sends vehicle data to the Vehicle Registration Authority API to verify and register vehicles. Responses are used to update the system or notify users.
+
+=== 4.3 Authentication and Authorization Flows at System Level
+
+Authentication is managed via Basic Auth where users provide credentials to access the system. Authorization is handled through RBAC, ensuring users only access data and actions appropriate to their roles.
+
+== Conclusion
+
+This document provides a comprehensive overview of the architecture for the Vehicle Management System. It is designed to give architects and senior developers a clear understanding of the system's design and operations, ensuring effective planning, development, and maintenance.

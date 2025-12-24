@@ -1,0 +1,57 @@
+package com.vm.identityprovider.controller;
+
+import com.vm.identityprovider.entity.User;
+import com.vm.identityprovider.service.JWTService;
+import com.vm.identityprovider.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/idp/users")
+public class UserController {
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private AuthenticationManager authManager;
+
+    @Autowired
+    private JWTService jwtService;
+
+    @PostMapping("/register")
+    public User registerUser(@RequestBody final User user) {
+        return userService.register(user);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<Object> login(@RequestBody final User user) {
+
+        final Authentication authentication = authManager.authenticate(
+                new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPasswordHash()));
+
+        if (authentication.isAuthenticated()) {
+            final String token = jwtService.generateToken(user.getUsername());
+            return ResponseEntity.ok().body(Map.of("token", token));
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid username or password"));
+    }
+
+    @PostMapping("/refreshtoken")
+    public ResponseEntity<Object> refreshToken(@RequestBody User user) {
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/refreshtokens")
+    public ResponseEntity<Object> refreshToken(@RequestBody User user) {
+        return ResponseEntity.ok().build();
+    }
+
+}

@@ -1,0 +1,105 @@
+== Interface Concept
+[id='usermanagement']
+The Usermanagement service provides API operations for managing usermanagement domain resources.
+
+=== usermanagement-external-api
+
+NOTE: A source block marked with class openapi will be wrapped in an OpenAPI Documentation Macro. (see https://marketplace.atlassian.com/apps/1215176/open-api-documentation-for-confluence?hosting=cloud&tab=overview[Open API Documentation for Confluence])!
+
+[source,openapi]
+----
+```yaml
+openapi: 3.0.0
+info:
+  title: User Management API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /user-management/onboard:
+    post:
+      tags:
+        - User Management
+      summary: Onboard a new user
+      operationId: onboardUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "john_doe"
+                password:
+                  type: string
+                  example: "s3cr3t"
+      responses:
+        '200':
+          description: User onboarded successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "User onboarded successfully"
+        '400':
+          description: Bad request
+  /user-management/assign-vehicle:
+    post:
+      tags:
+        - User Management
+      summary: Assign a vehicle to a user
+      operationId: assignVehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "john_doe"
+                vin:
+                  type: string
+                  example: "1HGCM82633A004352"
+                brand:
+                  type: string
+                  example: "Toyota"
+                country:
+                  type: string
+                  example: "USA"
+      responses:
+        '200':
+          description: Vehicle assigned successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Vehicle assigned successfully"
+        '400':
+          description: Bad request
+components:
+  schemas:
+    MobilityUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        mobilityUserId:
+          type: string
+          example: "MU12345"
+        role:
+          type: string
+          example: "driver"
+        username:
+          type: string
+          example: "john_doe"
+        vin:
+          type: string
+          example: "1HGCM82633A004352"
+```
+----

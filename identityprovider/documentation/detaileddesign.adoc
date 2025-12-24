@@ -1,0 +1,440 @@
+= Identity Provider Detailed Design Documentation
+
+This document provides a detailed design analysis of the Identity Provider application, focusing on class-by-class analysis, runtime view diagrams, entity relationship diagrams, and detailed component interactions.
+
+== 1. Class-by-Class Analysis
+
+=== IdentityproviderApplication
+
+This class is the entry point of the Spring Boot application.
+
+- *Annotations*:
+  - `@SpringBootApplication`: Marks this class as a Spring Boot application.
+
+- *Methods*:
+  - `public static void main(String[] args)`: Launches the Spring Boot application.
+
+=== JwtAuthFilter
+
+Responsible for JWT authentication filtering.
+
+- *Annotations*:
+  - `@Autowired`: Automatically injects the `UserService`.
+  - `@Component`: Marks this class as a Spring-managed component.
+  - `@Slf4j`: Provides a logger for this class.
+
+- *Methods*:
+  - `protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException`: Filters incoming requests and checks for valid JWT tokens.
+
+- *Fields*:
+  - `userService : UserService`: Service used to interact with user data.
+
+=== SecurityConfig
+
+Configures security aspects of the application, such as authentication and authorization.
+
+- *Annotations*:
+  - `@Configuration`: Marks this class as a configuration class.
+  - `@EnableWebSecurity`: Enables Spring Security's web security support.
+
+- *Methods*:
+  - `AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig)`: Defines the application's authentication manager.
+  - `AuthenticationProvider authenticationProvider()`: Provides a custom authentication provider.
+  - `SecurityFilterChain securityFilterChain(HttpSecurity http)`: Configures the security filter chain.
+
+- *Fields*:
+  - `jwtAuthFilter : JwtAuthFilter`: The JWT authentication filter.
+  - `userDetailsService : UserDetailsService`: Service to load user-specific data.
+
+=== UserController
+
+Handles all user-related HTTP requests.
+
+- *Annotations*:
+  - `@RestController`: Marks this class as a controller where every method returns a domain object instead of a view.
+  - `@RequestMapping`: Maps HTTP requests to handler methods of MVC and REST controllers.
+
+- *Methods*:
+  - `login(@RequestBody final User user)`: Authenticates a user and returns a JWT.
+  - `refreshToken(@RequestBody User user)`: Refreshes an expired JWT.
+  - `registerUser(@RequestBody final User user)`: Registers a new user.
+
+- *Fields*:
+  - `authManager : AuthenticationManager`: Manages authentication.
+  - `jwtService : JWTService`: Service related to JWT operations.
+  - `userService : UserService`: Service used to interact with user data.
+
+=== AuthRequest
+
+Simple data transfer object (DTO) for authentication requests.
+
+- *Annotations*:
+  - `@Data`: Lombok annotation to create all the getters, setters, equals, hash, and toString methods, based on the fields.
+
+- *Fields*:
+  - `username : String`: The username of the user.
+  - `password : String`: The password of the user.
+
+=== AuthResponse
+
+Simple DTO for authentication responses.
+
+=== UserPrincipal
+
+Spring Security's representation of an authenticated user.
+
+- *Annotations*:
+  - `@Override`: Indicates that a method declaration is intended to override a method declaration in a supertype.
+
+- *Methods*:
+  - `getAuthorities()`, `getPassword()`, `getUsername()`, `isAccountNonExpired()`, `isAccountNonLocked()`, `isCredentialsNonExpired()`, `isEnabled()`: Overrides from `UserDetails` interface.
+
+- *Fields*:
+  - `user : final User`: The user details.
+
+=== Client
+
+Represents an OAuth2 client in the system.
+
+- *Annotations*:
+  - `@Entity`: Marks this class as a JPA entity.
+  - `@Table`: Specifies the table in the database with which this entity is mapped.
+
+- *Fields*:
+  - `id : Long`: Primary key.
+  - `clientName : String`: Name of the client.
+  - `clientSecret : String`: Secret used for client authentication.
+  - `redirectUri : String`: URI to redirect after authentication.
+
+=== Role
+
+Represents a security role in the system.
+
+- *Annotations*:
+  - `@Entity`: Marks this class as a JPA entity.
+  - `@Table`: Specifies the table in the database with which this entity is mapped.
+
+- *Methods*:
+  - `getId()`, `getUsers()`, `getName()`, `setId(Long id)`, `setName(String name)`, `setUsers(Set<User> users)`: Getters and setters for the entity fields.
+
+- *Fields*:
+  - `id : Long`: Primary key.
+  - `name : String`: Name of the role.
+  - `users : Set<User>`: Users that have this role.
+
+=== Token
+
+Represents an OAuth2 token.
+
+- *Annotations*:
+  - `@Entity`: Marks this class as a JPA entity.
+  - `@Table`: Specifies the table in the database with which this entity is mapped.
+
+- *Fields*:
+  - `id : Long`: Primary key.
+  - `accessToken : String`: The access token.
+  - `refreshToken : String`: The refresh token.
+  - `user : User`: Associated user.
+  - `client : Client`: Associated client.
+
+=== User
+
+Represents a user in the system.
+
+- *Annotations*:
+  - `@Entity`: Marks this class as a JPA entity.
+  - `@Table`: Specifies the table in the database with which this entity is mapped.
+
+- *Fields*:
+  - `id : Long`: Primary key.
+  - `username : String`: Username of the user.
+  - `email : String`: Email of the user.
+  - `passwordHash : String`: Hashed password.
+  - `roles : Set<Role>`: Security roles of the user.
+
+=== UserRepository
+
+Spring Data repository for `User` entities.
+
+- *Annotations*:
+  - `@Repository`: Marks this interface as a Spring Data repository.
+
+=== AuditService
+
+Service for logging audit events.
+
+- *Annotations*:
+  - `@Service`: Marks this class as a Spring-managed service.
+
+- *Methods*:
+  - `logEvent(String event)`: Logs an audit event.
+
+=== EmailService
+
+Service for sending emails.
+
+- *Annotations*:
+  - `@Service`: Marks this class as a Spring-managed service.
+
+- *Methods*:
+  - `sendWelcomeEmail(String to)`: Sends a welcome email.
+
+- *Fields*:
+  - `notificationService : final NotificationService`: Service used for notifications.
+
+=== JWTService
+
+Service for handling JWT operations.
+
+- *Annotations*:
+  - `@Service`: Marks this class as a Spring-managed service.
+  - `@Slf4j`: Provides a logger for this class.
+
+- *Methods*:
+  - `extractUsername(String token)`: Extracts the username from a token.
+  - `generateToken(final String username)`: Generates a new token.
+  - `validateToken(String token)`: Validates a token.
+  - `invalidateToken(String token)`: Invalidates a token.
+
+- *Fields*:
+  - `auditService : final AuditService`: Audit service for logging.
+  - `secretKey : final Key`: The key used for signing tokens.
+  - `tokenBlacklistService : final TokenBlacklistService`: Service for blacklisting tokens.
+
+=== NotificationService
+
+Service for user notifications.
+
+- *Annotations*:
+  - `@Service`: Marks this class as a Spring-managed service.
+
+- *Methods*:
+  - `notifyUser(String user, String message)`: Notifies a user.
+
+=== TokenBlacklistService
+
+Service for blacklisting tokens.
+
+- *Annotations*:
+  - `@Service`: Marks this class as a Spring-managed service.
+
+- *Methods*:
+  - `blacklistToken(String token)`: Adds a token to the blacklist.
+
+=== UserService
+
+Service for user-related operations.
+
+- *Annotations*:
+  - `@Service`: Marks this class as a Spring-managed service.
+
+- *Methods*:
+  - `loadUserByUsername(final String username) throws UsernameNotFoundException`: Loads user details by username.
+  - `register(final User user)`: Registers a new user.
+
+- *Fields*:
+  - `auditService : AuditService`: Service for audit logging.
+  - `emailService : EmailService`: Service for sending emails.
+  - `encoder : BCryptPasswordEncoder`: Password encoder.
+  - `userRepository : UserRepository`: Repository for accessing user data.
+
+=== IdentityproviderApplicationTests
+
+Class for integration tests.
+
+- *Annotations*:
+  - `@SpringBootTest`: Marks the class as a Spring Boot test, which provides a test environment.
+  - `@Test`: Marks a method to be tested.
+
+== 2. Runtime View Diagrams
+
+=== Sequence Diagrams
+
+The following sequence diagrams illustrate the key business flows within the Identity Provider application.
+
+==== User Registration Flow
+
+[plantuml, user-registration-flow, png]
+----
+@startuml
+actor User
+participant UserController
+participant UserService
+participant UserRepository
+participant EmailService
+
+User -> UserController : register(user)
+UserController -> UserService : register(user)
+UserService -> UserRepository : save(user)
+UserRepository -> UserService : userSaved
+UserService -> EmailService : sendWelcomeEmail(user.email)
+EmailService -> UserService : emailSent
+UserService -> UserController : userRegistered
+UserController -> User : user
+@enduml
+----
+
+==== Authentication/Login Flow
+
+[plantuml, authentication-flow, png]
+----
+@startuml
+actor User
+participant UserController
+participant UserService
+participant JWTService
+
+User -> UserController : login(authRequest)
+UserController -> UserService : loadUserByUsername(authRequest.username)
+UserService -> UserController : userDetails
+UserController -> JWTService : generateToken(userDetails.username)
+JWTService -> UserController : token
+UserController -> User : token
+@enduml
+----
+
+==== JWT Token Validation Flow
+
+[plantuml, jwt-validation-flow, png]
+----
+@startuml
+actor User
+participant JwtAuthFilter
+participant JWTService
+
+User -> JwtAuthFilter : request(resource)
+JwtAuthFilter -> JWTService : validateToken(token)
+JWTService -> JwtAuthFilter : isValid
+JwtAuthFilter -> User : proceed / error
+@enduml
+----
+
+==== Business Process Flow
+
+[plantuml, business-process-flow, png]
+----
+@startuml
+actor User
+participant UserController
+participant UserService
+participant AuditService
+
+User -> UserController : performAction()
+UserController -> UserService : processAction()
+UserService -> AuditService : logEvent("Action processed")
+AuditService -> UserService : logged
+UserService -> UserController : result
+UserController -> User : response
+@enduml
+----
+
+==== Exception Handling Flow
+
+[plantuml, exception-handling-flow, png]
+----
+@startuml
+actor User
+participant UserController
+participant UserService
+participant ExceptionHandler
+
+User -> UserController : request()
+alt success
+  UserController -> UserService : processRequest()
+  UserService -> UserController : response
+  UserController -> User : response
+else error
+  UserController -> ExceptionHandler : handleError()
+  ExceptionHandler -> UserController : errorResponse
+  UserController -> User : errorResponse
+end
+@enduml
+----
+
+== 3. Entity Relationship Diagram
+
+The following diagram illustrates the database schema and the relationships between entities.
+
+[plantuml, entity-relationship-diagram, png]
+----
+@startuml
+entity "User" {
+  * id : Long
+  --
+  * username : String
+  * email : String
+  * passwordHash : String
+  * roles : Set<Role>
+}
+
+entity "Role" {
+  * id : Long
+  --
+  * name : String
+  * users : Set<User>
+}
+
+entity "Client" {
+  * id : Long
+  --
+  * clientName : String
+  * clientSecret : String
+  * redirectUri : String
+}
+
+entity "Token" {
+  * id : Long
+  --
+  * accessToken : String
+  * refreshToken : String
+  * user : User
+  * client : Client
+}
+
+User "1" -- "*" Role : has >
+Role "1" -- "*" User : belongs to >
+User "1" -- "*" Token : owns >
+Client "1" -- "*" Token : issued >
+@enduml
+----
+
+=== Detailed Entity Descriptions
+
+- **User**: Represents a user in the system. Each user has a unique ID, a username, an email, a password hash, and a set of roles.
+- **Role**: Represents a security role. Each role has a unique ID, a name, and is associated with multiple users.
+- **Client**: Represents an OAuth2 client application. Each client has a unique ID, a name, a client secret for authentication, and a redirect URI.
+- **Token**: Represents an OAuth2 token. Each token has a unique ID, an access token, a refresh token, and is associated with a specific user and client.
+
+== 4. Detailed Component Interactions
+
+=== Controller-Service-Repository Interactions
+
+- **UserController**:
+  - Interacts with **UserService** to handle user registration, login, and token refresh operations.
+  - Receives HTTP requests and delegates business logic execution to services.
+
+- **UserService**:
+  - Interacts with **UserRepository** to persist user data.
+  - Uses **EmailService** to send welcome emails upon user registration.
+  - Utilizes **JWTService** for token generation and validation.
+
+- **JWTService**:
+  - Interacts with **AuditService** to log token generation and validation events.
+
+=== Data Flow Through Layers
+
+- Data flows from controllers to services where business logic is processed.
+- Services interact with repositories to persist or retrieve data.
+- Services may also interact with other services to perform necessary actions, such as sending notifications or logging.
+
+=== Exception Propagation
+
+- Exceptions are thrown by services when business rules are violated or data constraints are not met.
+- Controllers catch these exceptions and translate them into appropriate HTTP responses.
+
+=== Transaction Boundaries
+
+- Transactions are managed at the service layer, ensuring that data integrity is maintained across multiple operations.
+- Spring's declarative transaction management is typically used to define transaction boundaries with annotations.
+
+This detailed design document provides a comprehensive overview of the Identity Provider application, enabling developers to understand and contribute effectively to the project.

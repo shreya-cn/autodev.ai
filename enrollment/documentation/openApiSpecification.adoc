@@ -1,0 +1,102 @@
+== Interface Concept
+[id='enrollment']
+The Enrollment service provides API operations for managing enrollment domain resources.
+
+=== enrollment-external-api
+
+NOTE: A source block marked with class openapi will be wrapped in an OpenAPI Documentation Macro. (see https://marketplace.atlassian.com/apps/1215176/open-api-documentation-for-confluence?hosting=cloud&tab=overview[Open API Documentation for Confluence])!
+
+[source.openapi,yaml]
+----
+openapi: 3.0.0
+info:
+  title: Enrollment API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /enrollment/nominate-primary:
+    post:
+      tags:
+        - Enrollment
+      summary: Nominate a primary user
+      operationId: nominatePrimary
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+              required:
+                - username
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Primary nomination successful for user: exampleUser"
+        '400':
+          description: Bad request
+  /enrollment/nominate-secondary:
+    post:
+      tags:
+        - Enrollment
+      summary: Nominate a secondary user
+      operationId: nominateSecondary
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+              required:
+                - username
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Secondary nomination successful for user: exampleUser"
+        '400':
+          description: Bad request
+components:
+  schemas:
+    Enrollment:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 123
+        role:
+          type: string
+          example: "Primary"
+        username:
+          type: string
+          example: "exampleUser"
+        vin:
+          type: string
+          example: "1HGCM82633A004352"
+    UserResponseDTO:
+      type: object
+      properties:
+        mobilityUserId:
+          type: string
+          example: "1001"
+        username:
+          type: string
+          example: "exampleUser"
+        vin:
+          type: string
+          example: "1HGCM82633A004352"
+----

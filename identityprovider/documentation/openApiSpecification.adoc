@@ -1,0 +1,152 @@
+== Interface Concept
+[id='identityprovider']
+The Identityprovider service provides API operations for managing identityprovider domain resources.
+
+=== identityprovider-external-api
+
+NOTE: A source block marked with class openapi will be wrapped in an OpenAPI Documentation Macro. (see https://marketplace.atlassian.com/apps/1215176/open-api-documentation-for-confluence?hosting=cloud&tab=overview[Open API Documentation for Confluence])!
+
+[source.openapi,yaml]
+----
+openapi: 3.0.0
+info:
+  title: Identity Provider API
+  version: 1.0.0
+servers:
+  - url: /idp
+paths:
+  /users/register:
+    post:
+      tags:
+        - User
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+            examples:
+              example1:
+                value:
+                  username: "newuser"
+                  email: "newuser@example.com"
+                  password: "password123"
+      responses:
+        '200':
+          description: Successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /users/login:
+    post:
+      tags:
+        - User
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+            examples:
+              example1:
+                value:
+                  username: "user1"
+                  password: "password123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /users/refreshtoken:
+    post:
+      tags:
+        - User
+      summary: Refresh authentication token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+  /users/refreshtokens:
+    post:
+      tags:
+        - User
+      summary: Refresh authentication token (alternative endpoint)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+        passwordHash:
+          type: string
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+      required:
+        - username
+        - email
+        - passwordHash
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+      required:
+        - accessToken
+        - refreshToken
+security:
+  - jwt: []
+securitySchemes:
+  jwt:
+    type: http
+    scheme: bearer
+    bearerFormat: JWT
+----
