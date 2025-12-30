@@ -136,11 +136,9 @@ class AITicketSuggester:
                     if issue["fields"].get("assignee"):
                         assignee_name = issue["fields"]["assignee"].get("displayName", "Unassigned")
                     
-                    # Handle description - can be dict or string
+                    # Extract description from ADF format
                     description = issue["fields"].get("description", "")
-                    if isinstance(description, dict):
-                        # Extract text from Atlassian Document Format
-                        description = ""
+                    description = self.extract_text_from_adf(description)
                     
                     tickets.append({
                         "key": issue["key"],
@@ -171,15 +169,88 @@ class AITicketSuggester:
         
         return self.search_jira_tickets(jql)
     
-    def pattern_match_tickets(self, changed_files: List[str], all_tickets: List[Dict]) -> List[Dict]:
-        """Pattern matching: Find tickets that might be related based on keywords and file paths."""
+    def extract_text_from_adf(self, adf_content) -> str:
+        """Extract plain text from Atlassian Document Format (ADF)."""
+        if isinstance(adf_content, str):
+            return adf_content
+        
+        if not isinstance(adf_content, dict):
+            return ""
+        
+        text_parts = []
+        
+        def extract_recursive(node):
+            if isinstance(node, dict):
+                # If it's a text node, get the text
+                if node.get('type') == 'text':
+                    text_parts.append(node.get('text', ''))
+                
+                # Recursively process content
+                if 'content' in node:
+                    for child in node['content']:
+                        extract_recursive(child)
+            elif isinstance(node, list):
+                for item in node:
+                    extract_recursive(item)
+        
+        extract_recursive(adf_content)
+        return ' '.join(text_parts)
+    
+    def get_ticket_info(self, ticket_key: str) -> Optional[Dict]:
+        """Get detailed information for a specific ticket."""
+        try:
+            url = f"{self.jira_url}/rest/api/3/issue/{ticket_key}"
+            response = self.session.get(url)
+            
+            if response.status_code == 200:
+                data = response.json()
+                assignee_name = "Unassigned"
+                if data["fields"].get("assignee"):
+                    assignee_name = data["fields"]["assignee"].get("displayName", "Unassigned")
+                
+                # Extract description from ADF format
+                description = data["fields"].get("description", "")
+                description = self.extract_text_from_adf(description)
+                
+                return {
+                    "key": data["key"],
+                    "summary": data["fields"]["summary"],
+                    "description": description,
+                    "status": data["fields"]["status"]["name"],
+                    "assignee": assignee_name,
+                    "labels": data["fields"].get("labels", []),
+                    "components": [c["name"] for c in data["fields"].get("components", [])]
+                }
+            return None
+        except Exception as e:
+            print(f"Error getting ticket {ticket_key}: {e}")
+            return None
+    
+    def pattern_match_tickets(self, changed_files: List[str], all_tickets: List[Dict], current_ticket_info: Optional[Dict] = None) -> List[Dict]:
+        """Pattern matching: Find tickets that might be related based on keywords, file paths, and current ticket."""
         candidates = []
         
         # Extract keywords from file paths
         file_keywords = set()
         for file_path in changed_files:
-            parts = file_path.replace('/', ' ').replace('_', ' ').replace('-', ' ').split()
+            parts = file_path.replace('/', ' ').replace('_', ' ').replace('-', ' ').replace('.', ' ').split()
             file_keywords.update(p.lower() for p in parts if len(p) > 2)
+        
+        # Extract keywords from current ticket's summary and description
+        ticket_keywords = set()
+        if current_ticket_info:
+            # From summary
+            summary_parts = current_ticket_info['summary'].replace('-', ' ').replace('_', ' ').split()
+            ticket_keywords.update(p.lower() for p in summary_parts if len(p) > 3)
+            
+            # From description
+            desc = current_ticket_info.get('description', '')
+            if isinstance(desc, str) and desc:
+                desc_parts = desc.replace('-', ' ').replace('_', ' ').split()
+                ticket_keywords.update(p.lower() for p in desc_parts if len(p) > 3)
+        
+        # Combine all keywords
+        all_keywords = file_keywords | ticket_keywords
         
         # Score each ticket
         for ticket in all_tickets:
@@ -188,34 +259,37 @@ class AITicketSuggester:
             
             # Check summary for keywords
             summary_lower = ticket['summary'].lower()
-            for keyword in file_keywords:
+            for keyword in all_keywords:
                 if keyword in summary_lower:
-                    score += 2
-                    reasons.append(f"keyword '{keyword}' in summary")
+                    score += 3 if keyword in ticket_keywords else 2
+                    source = "similar summary" if keyword in ticket_keywords else "file keyword"
+                    reasons.append(f"'{keyword}' ({source})")
             
             # Check description
             desc = ticket.get('description', '')
-            if isinstance(desc, str):
+            if isinstance(desc, str) and desc:
                 desc_lower = desc.lower()
-                for keyword in file_keywords:
+                for keyword in all_keywords:
                     if keyword in desc_lower:
-                        score += 1
-                        reasons.append(f"keyword '{keyword}' in description")
+                        score += 2 if keyword in ticket_keywords else 1
+                        source = "similar description" if keyword in ticket_keywords else "file keyword"
+                        if not any(keyword in r for r in reasons):  # Avoid duplicates
+                            reasons.append(f"'{keyword}' in description ({source})")
             
             # Check labels and components
             for label in ticket.get('labels', []):
-                if label.lower() in file_keywords:
-                    score += 3
+                if label.lower() in all_keywords:
+                    score += 4
                     reasons.append(f"matching label '{label}'")
             
             for component in ticket.get('components', []):
-                if component.lower() in file_keywords:
-                    score += 3
+                if component.lower() in all_keywords:
+                    score += 4
                     reasons.append(f"matching component '{component}'")
             
             if score > 0:
                 ticket['match_score'] = score
-                ticket['match_reasons'] = reasons
+                ticket['match_reasons'] = reasons[:3]  # Top 3 reasons
                 candidates.append(ticket)
         
         # Sort by score and return top candidates
@@ -368,31 +442,41 @@ Return empty array [] if no tickets are related."""
         """Main function: Suggest related tickets using hybrid approach."""
         print(f"\n🔍 Analyzing related tickets for {current_ticket}...")
         
-        # Step 1: Get code changes
+        # Step 1: Get current ticket info
+        current_ticket_info = self.get_ticket_info(current_ticket)
+        if current_ticket_info:
+            print(f"📋 Current: {current_ticket_info['summary']}")
+        
+        # Step 2: Get code changes
         changed_files = self.get_changed_files()
         commits = self.get_recent_commits(limit=3)
         
         if not changed_files:
-            print("No recent code changes found")
-            return []
+            print("ℹ️  No recent code changes found (this is normal for new branches)")
+            # Even without code changes, we can find similar tickets based on description
+            changed_files = []
         
-        print(f"Analyzing {len(changed_files)} changed files...")
+        if changed_files:
+            print(f"📁 Analyzing {len(changed_files)} changed files...")
         
-        # Step 2: Get all open tickets
+        # Step 3: Get all open tickets
         all_tickets = self.get_all_open_tickets(exclude_ticket=current_ticket)
-        print(f"Found {len(all_tickets)} open tickets in Jira")
+        print(f"🎫 Found {len(all_tickets)} open tickets in Jira")
         
         if not all_tickets:
+            print("ℹ️  No other open tickets found")
             return []
         
-        # Step 3: Pattern matching to narrow down candidates
-        candidates = self.pattern_match_tickets(changed_files, all_tickets)
-        print(f"Pattern matching found {len(candidates)} candidate tickets")
+        # Step 4: Pattern matching to narrow down candidates (now includes current ticket description)
+        candidates = self.pattern_match_tickets(changed_files, all_tickets, current_ticket_info)
         
         if not candidates:
+            print("ℹ️  No matching tickets found (your work appears independent)")
             return []
         
-        # Step 4: AI analysis for final ranking
+        print(f"🔍 Pattern matching found {len(candidates)} candidate tickets")
+        
+        # Step 5: AI analysis for final ranking
         commit_summary = '\n'.join(f"- {c['subject']}" for c in commits)
         suggestions = self.ai_analyze_relevance(
             current_ticket, 
@@ -401,11 +485,13 @@ Return empty array [] if no tickets are related."""
             candidates
         )
         
-        print(f"AI analysis completed: {len(suggestions)} related tickets found")
+        if suggestions:
+            print(f"✅ AI analysis completed: {len(suggestions)} related tickets identified")
+        else:
+            print("ℹ️  AI found no strongly related tickets")
         
-        # Step 5: Generate daily report
+        # Step 6: Generate daily report
         report_path = self.generate_daily_report(current_ticket, suggestions)
-        print(f"\n✅ Report generated: {report_path}")
         
         return suggestions
 
