@@ -9,10 +9,16 @@ import sys
 from pathlib import Path
 
 # Get the directory containing this script
-SCRIPT_DIR = Path(__file__).parent.absolute()
+# The hook is in .git/hooks but is a symlink to git-hooks/post-checkout
+# So we need to get the real path
+SCRIPT_DIR = Path(__file__).resolve().parent.absolute()
 
-# Import the ticket manager
-sys.path.insert(0, str(SCRIPT_DIR.parent))
+# Add parent directory to Python path (the repo root)
+REPO_ROOT = SCRIPT_DIR.parent
+if REPO_ROOT.name == "git-hooks":
+    REPO_ROOT = REPO_ROOT.parent
+
+sys.path.insert(0, str(REPO_ROOT))
 
 try:
     from jira_ticket_manager import JiraTicketManager
@@ -33,6 +39,8 @@ try:
         update_ticket()
         
 except Exception as e:
+    import traceback
     # Don't fail git operations if there's an error
     print(f"Warning: Jira ticket update failed: {e}")
+    traceback.print_exc()
     pass
