@@ -1,3 +1,4 @@
+// Trigger workflow run
 import { spawn } from 'child_process';
 
 console.log('🧪 Testing MCP Server...');
