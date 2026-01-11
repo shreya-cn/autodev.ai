@@ -4,7 +4,7 @@
 
 import { execSync } from 'child_process';
 import { Octokit } from '@octokit/rest';
-import openai from 'openai';
+import OpenAI from 'openai';
 import fs from 'fs';
 
 // Load config (replace with your repo and OpenAI details)
@@ -19,7 +19,7 @@ if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
 }
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
-openai.apiKey = OPENAI_API_KEY;
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 async function getChangedFiles(prNumber) {
   const { data } = await octokit.pulls.listFiles({
@@ -27,11 +27,12 @@ async function getChangedFiles(prNumber) {
     repo: REPO_NAME,
     pull_number: prNumber,
   });
-  return data.map(f => f.filename);
+  return data.map(f => f.filename.replace(/^autodoc-ai-mcp-server\//, ''));
 }
 
 function runLint(files) {
   try {
+    // Use only the filenames, not the full path
     const result = execSync(`npx eslint ${files.join(' ')}`, { encoding: 'utf-8' });
     return result;
   } catch (e) {
@@ -49,13 +50,15 @@ function runBuildCheck() {
 }
 
 async function generateLLMReview(diff) {
-  // Replace with your OpenAI LLM call
-  const response = await openai.Completion.create({
+  // Use OpenAI chat completion API (latest SDK)
+  const response = await openai.chat.completions.create({
     model: 'gpt-4',
-    prompt: `Review the following code diff and provide review comments and refactoring suggestions.\n${diff}`,
+    messages: [
+      { role: 'user', content: `Review the following code diff and provide review comments and refactoring suggestions.\n${diff}` }
+    ],
     max_tokens: 300,
   });
-  return response.choices[0].text.trim();
+  return response.choices[0].message.content.trim();
 }
 
 async function postPRComment(prNumber, body) {
