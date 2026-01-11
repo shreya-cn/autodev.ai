@@ -97,3 +97,5 @@ function doubleAgain(x) {
 // Linting: inconsistent quotes, missing semicolons
 console.log("Double:", double(4))
 console.log('DoubleAgain:', doubleAgain(4))
+
+// Trigger PR workflow again
