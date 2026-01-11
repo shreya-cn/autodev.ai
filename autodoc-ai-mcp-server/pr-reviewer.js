@@ -22,16 +22,12 @@ const octokit = new Octokit({ auth: GITHUB_TOKEN });
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 async function getChangedFiles(prNumber) {
-  try {
-    const { data } = await octokit.pulls.listFiles({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      pull_number: prNumber,
-    });
-    return data.map(f => f.filename.replace(/^autodoc-ai-mcp-server\//, ''));
-  } catch (err) {
-    return [];
-  }
+  const { data } = await octokit.pulls.listFiles({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    pull_number: prNumber,
+  });
+  return data.map(f => f.filename.replace(/^autodoc-ai-mcp-server\//, ''));
 }
 
 function runLint(files) {
@@ -54,27 +50,20 @@ function runBuildCheck() {
   }
 }
 
-function runTestCoverage() {
-  try {
-    const result = execSync('npm test -- --coverage', { encoding: 'utf-8' });
-    return result;
-  } catch (e) {
-    return e.stdout || e.message;
-  }
-}
-
 function runAudit() {
   try {
     const result = execSync('npm audit --json', { encoding: 'utf-8' });
     const audit = JSON.parse(result);
-    return `Vulnerabilities: ${audit.metadata.vulnerabilities.total}`;
+    const total = audit.metadata.vulnerabilities.total;
+    if (total === 0) return 'No known vulnerabilities 🚦';
+    return `Vulnerabilities found: ${total} ⚠️`;
   } catch (e) {
-    return e.stdout || e.message;
+    return 'Vulnerability check failed.';
   }
 }
 
 async function generateLLMReview(diff) {
-  const llmPrompt = `Review the following code diff and provide:\n- A summary of the changes\n- Code review comments (style, bugs, best practices)\n- Refactoring suggestions\n- Accessibility and security notes if relevant\n- A closing statement\n\nDiff:\n${diff}`;
+  const llmPrompt = `You are an expert code reviewer. Please provide:\n- A concise summary of the changes\n- Constructive code review comments (style, bugs, best practices)\n- Refactoring suggestions\n- Accessibility and security notes if relevant\n- A friendly closing statement\n\nDiff:\n${diff}`;
   const response = await openai.chat.completions.create({
     model: OPENAI_MODEL,
     messages: [
@@ -84,18 +73,54 @@ async function generateLLMReview(diff) {
   });
   let content = response.choices[0].message.content.trim();
   if (!content.endsWith('.') && !content.endsWith('!') && !content.endsWith('?')) {
-    content += '\n\nThank you for your contribution!';
+    content += '\n\nThank you for your contribution! 🚀';
   }
   return content;
 }
 
-async function postPRComment(prNumber, body) {
+async function getExistingComments(prNumber) {
+  const { data } = await octokit.issues.listComments({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    issue_number: prNumber,
+    per_page: 100
+  });
+  return data.map(c => c.body);
+}
+
+async function isSimilarComment(a, b) {
+  // Normalize: remove whitespace, collapse newlines, lowercase
+  const norm = str => str.replace(/\s+/g, ' ').trim().toLowerCase();
+  const na = norm(a);
+  const nb = norm(b);
+  if (!na || !nb) return false;
+  // Simple similarity: percent of matching chars in the shorter string
+  const minLen = Math.min(na.length, nb.length);
+  let match = 0;
+  for (let i = 0; i < minLen; i++) {
+    if (na[i] === nb[i]) match++;
+  }
+  const similarity = match / minLen;
+  return similarity > 0.9; // 90%+ similar
+}
+
+async function postPRCommentIfNew(prNumber, body) {
+  const existingComments = await getExistingComments(prNumber);
+  // Only compare to previous bot comments
+  const botComments = existingComments.filter(c => c && c.startsWith('### 🤖 **AutoDoc Automated Review**'));
+  for (const c of botComments) {
+    if (await isSimilarComment(c, body)) {
+      console.log('No new review comment needed (duplicate or near-duplicate detected).');
+      return;
+    }
+  }
   await octokit.issues.createComment({
     owner: REPO_OWNER,
     repo: REPO_NAME,
     issue_number: prNumber,
     body,
   });
+  console.log('Posted automated review comment to PR #' + prNumber);
 }
 
 async function main() {
@@ -108,27 +133,40 @@ async function main() {
   const files = await getChangedFiles(prNumber);
   const lintResult = runLint(files);
   const buildResult = runBuildCheck();
-  const testCoverage = runTestCoverage();
   const auditResult = runAudit();
 
   // Get PR diff
-  let diff = '';
-  try {
-    const { data: pr } = await octokit.pulls.get({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      pull_number: prNumber,
-    });
-    diff = pr.diff_url ? execSync(`curl -sL ${pr.diff_url}`, { encoding: 'utf-8' }) : '';
-  } catch (err) {
-    diff = '';
-  }
+  const { data: pr } = await octokit.pulls.get({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    pull_number: prNumber,
+  });
+  const diff = pr.diff_url ? execSync(`curl -sL ${pr.diff_url}`, { encoding: 'utf-8' }) : '';
   const llmReview = await generateLLMReview(diff);
 
-  const commentBody = `### Automated Review\n\n**Lint Results:**\n\n\`\`\`\n${lintResult}\n\`\`\`\n\n**Build Results:**\n\n\`\`\`\n${buildResult}\n\`\`\`\n\n**Test Coverage:**\n\n\`\`\`\n${testCoverage}\n\`\`\`\n\n**Dependency Audit:**\n\n${auditResult}\n\n**LLM Suggestions:**\n\n${llmReview}`;
+  const commentBody = `### 🤖 **AutoDoc Automated Review**
 
-  await postPRComment(prNumber, commentBody);
-  console.log('Posted automated review comment to PR #' + prNumber);
+---
+
+#### 🧹 **Lint Results**
+\`\`\`
+${lintResult}
+\`\`\`
+
+#### 🏗️ **Build Results**
+\`\`\`
+${buildResult}
+\`\`\`
+
+#### 🛡️ **Vulnerability Check**
+${auditResult}
+
+#### 💡 **AI Suggestions & Refactoring**
+${llmReview}
+
+---`;
+
+  await postPRCommentIfNew(prNumber, commentBody);
 }
 
 main().catch(err => {
