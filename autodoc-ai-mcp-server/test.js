@@ -98,4 +98,4 @@ function doubleAgain(x) {
 console.log("Double:", double(4))
 console.log('DoubleAgain:', doubleAgain(4))
 
-// Trigger PR workflow again
+// Minor change to trigger PR workflow
