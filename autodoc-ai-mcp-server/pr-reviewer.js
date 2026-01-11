@@ -2,10 +2,10 @@
 // Script to auto-generate PR review comments and refactoring suggestions
 // Usage: node pr-reviewer.js <PR_NUMBER>
 
-const { execSync } = require('child_process');
-const { Octokit } = require('@octokit/rest');
-const openai = require('openai');
-const fs = require('fs');
+import { execSync } from 'child_process';
+import { Octokit } from '@octokit/rest';
+import openai from 'openai';
+import fs from 'fs';
 
 // Load config (replace with your repo and OpenAI details)
 const REPO_OWNER = process.env.REPO_OWNER || 'your-org';
