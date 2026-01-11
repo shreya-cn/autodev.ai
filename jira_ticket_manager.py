@@ -22,7 +22,7 @@ JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN", os.getenv("CONFLUENCE_API_TOKEN"))
 # Jira transition mappings (these IDs may vary per project)
 TRANSITION_MAPPING = {
     "in_progress": {"name": "In Progress", "id": None},
-    "in_review": {"name": "In Review", "id": None},
+    "in_review": {"name": "Review", "id": None},
     "done": {"name": "Done", "id": None}
 }
 
@@ -246,7 +246,7 @@ class JiraTicketManager:
         
         status_names = {
             'in_progress': 'In Progress',
-            'in_review': 'In Review',
+            'in_review': 'Review',
             'done': 'Done'
         }
         
