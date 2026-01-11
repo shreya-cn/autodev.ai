@@ -10,6 +10,9 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 import html
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configuration
 CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")

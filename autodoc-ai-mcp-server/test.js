@@ -53,3 +53,46 @@ server.on('close', (code) => {
         console.log('📋 Try using it with Claude Desktop or another MCP client');
     }
 });
+
+// Sample function to trigger PR review comments
+function addNumbers(a, b) {
+    if (typeof a !== 'number' || typeof b !== 'number') {
+        return 'Invalid input'; // Should throw error or handle better
+    }
+    return a + b // missing semicolon, no input validation for NaN
+}
+
+console.log('Sum:', addNumbers(2, '3'));
+
+// Linting issue: unused variable
+let unusedVar = 42
+
+// Bug: unreachable code
+function checkPositive(num) {
+    if (num < 0) {
+        return false;
+        console.log('This will never run'); // unreachable
+    }
+    return true;
+}
+
+// Code quality: bad variable naming
+let a = 5, b = 10;
+let result = a+b
+console.log('Result:', result)
+
+// Accessibility: simulated issue in HTML string
+const htmlButton = '<button>Click</button>' // missing accessible label
+console.log(htmlButton)
+
+// Refactoring: duplicate code
+function double(x) {
+    return x * 2;
+}
+function doubleAgain(x) {
+    return x * 2;
+}
+
+// Linting: inconsistent quotes, missing semicolons
+console.log("Double:", double(4))
+console.log('DoubleAgain:', doubleAgain(4))
