@@ -58,7 +58,71 @@ function runAudit() {
     if (total === 0) return 'No known vulnerabilities 🚦';
     return `Vulnerabilities found: ${total} ⚠️`;
   } catch (e) {
-    return 'Vulnerability check failed.';
+    // Try to parse and summarize audit output even on error
+    if (e.stdout) {
+      return summarizeAudit(e.stdout);
+    }
+    return `Vulnerability check failed. Error: ${e.message}`;
+  }
+}
+
+function summarizeAudit(auditJson) {
+  try {
+    const audit = JSON.parse(auditJson);
+    // New npm audit format (npm v7+)
+    if (audit.vulnerabilities) {
+      const vulns = audit.vulnerabilities;
+      const names = Object.keys(vulns);
+      if (names.length === 0) return 'No known vulnerabilities 🚦';
+      let summary = '';
+      let total = 0;
+      const severityCount = { low: 0, moderate: 0, high: 0, critical: 0 };
+      let details = '';
+      for (const name of names) {
+        const v = vulns[name];
+        total++;
+        if (v.severity && severityCount[v.severity] !== undefined) {
+          severityCount[v.severity]++;
+        }
+        // List each vulnerability for this package
+        if (v.via && Array.isArray(v.via)) {
+          v.via.forEach((issue) => {
+            if (typeof issue === 'object') {
+              details += `- ${name} (${v.severity}): ${issue.title || issue.source || 'No title'}\n`;
+            } else {
+              details += `- ${name} (${v.severity}): ${issue}\n`;
+            }
+          });
+        } else if (v.via) {
+          details += `- ${name} (${v.severity}): ${v.via}\n`;
+        }
+      }
+      summary += `Vulnerabilities found: ${total} ⚠️\n`;
+      summary += `Severity: ` + Object.entries(severityCount).map(([sev, count]) => `${sev}: ${count}`).join(', ') + '\n';
+      summary += `\nVulnerable packages/details:\n${details}`;
+      return summary;
+    }
+    // Old npm audit format
+    if (audit.metadata && audit.metadata.vulnerabilities) {
+      const meta = audit.metadata.vulnerabilities;
+      const total = meta.total || (meta.low + meta.moderate + meta.high + meta.critical);
+      if (total === 0) return 'No known vulnerabilities 🚦';
+      let details = '';
+      if (audit.advisories) {
+        for (const id in audit.advisories) {
+          const adv = audit.advisories[id];
+          details += `- ${adv.module_name} (${adv.severity}): ${adv.title}\n`;
+        }
+      }
+      return `Vulnerabilities found: ${total} ⚠️\nSeverity: low: ${meta.low}, moderate: ${meta.moderate}, high: ${meta.high}, critical: ${meta.critical}\n\nVulnerable packages/details:\n${details}`;
+    }
+    // If error field present
+    if (audit.error) {
+      return `Vulnerability check failed: ${audit.error.summary || audit.error}`;
+    }
+    return `Vulnerability check: Unrecognized audit output. Raw: ${auditJson}`;
+  } catch (err) {
+    return `Vulnerability check failed. Could not parse audit output. Raw: ${auditJson}`;
   }
 }
  
