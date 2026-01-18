@@ -9,4 +9,6 @@ import java.util.Map;
 public interface IdentityProviderClient {
     @PostMapping("/idp/users/login")
     Map<String, Object> login(@RequestBody Map<String, String> credentials);
+
+    // TODO: Add more methods as needed for identity provider integration
 }
