@@ -53,13 +53,3 @@ server.on('close', (code) => {
         console.log('📋 Try using it with Claude Desktop or another MCP client');
     }
 });
-
-// server.on('close', (code) => {
-//     console.log(`🔚 Test completed (exit code: ${code})`);
-//     if (responseReceived) {
-//         console.log('🎉 Your server is working correctly!');
-//     } else {
-//         console.log('🤔 Server started but no JSON response - this is often normal for MCP servers');
-//         console.log('📋 Try using it with Claude Desktop or another MCP client');
-//     }
-// });
