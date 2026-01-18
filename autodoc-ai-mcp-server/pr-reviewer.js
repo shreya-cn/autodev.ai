@@ -52,12 +52,52 @@ function runBuildCheck() {
 function runAudit() {
   try {
     const result = require('child_process').execSync('npm audit --json', { encoding: 'utf-8' });
-    const audit = JSON.parse(result);
-    const total = audit.metadata.vulnerabilities.total;
-    if (total === 0) return 'No known vulnerabilities 🚦';
-    return `Vulnerabilities found: ${total} ⚠️`;
+    return summarizeAudit(result);
   } catch (e) {
-    return 'Vulnerability check failed.';
+    // Try to parse and summarize audit output even on error
+    if (e.stdout) {
+      return summarizeAudit(e.stdout);
+    }
+    return `Vulnerability check failed. Error: ${e.message}`;
+  }
+}
+
+function summarizeAudit(auditJson) {
+  try {
+    const audit = JSON.parse(auditJson);
+    // New npm audit format (npm v7+)
+    if (audit.vulnerabilities) {
+      const vulns = audit.vulnerabilities;
+      const names = Object.keys(vulns);
+      if (names.length === 0) return 'No known vulnerabilities 🚦';
+      let summary = '';
+      let total = 0;
+      const severityCount = { low: 0, moderate: 0, high: 0, critical: 0 };
+      for (const name of names) {
+        const v = vulns[name];
+        total++;
+        if (v.severity && severityCount[v.severity] !== undefined) {
+          severityCount[v.severity]++;
+        }
+      }
+      summary += `Vulnerabilities found: ${total} ⚠️\n`;
+      summary += `Severity: ` + Object.entries(severityCount).map(([sev, count]) => `${sev}: ${count}`).join(', ');
+      return summary;
+    }
+    // Old npm audit format
+    if (audit.metadata && audit.metadata.vulnerabilities) {
+      const meta = audit.metadata.vulnerabilities;
+      const total = meta.total || (meta.low + meta.moderate + meta.high + meta.critical);
+      if (total === 0) return 'No known vulnerabilities 🚦';
+      return `Vulnerabilities found: ${total} ⚠️\nSeverity: low: ${meta.low}, moderate: ${meta.moderate}, high: ${meta.high}, critical: ${meta.critical}`;
+    }
+    // If error field present
+    if (audit.error) {
+      return `Vulnerability check failed: ${audit.error.summary || audit.error}`;
+    }
+    return `Vulnerability check: Unrecognized audit output. Raw: ${auditJson}`;
+  } catch (err) {
+    return `Vulnerability check failed. Could not parse audit output. Raw: ${auditJson}`;
   }
 }
 
