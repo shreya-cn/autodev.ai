@@ -1,25 +1,24 @@
-// pr-reviewer.js
-// Script to auto-generate PR review comments and refactoring suggestions
-// Usage: node pr-reviewer.js <PR_NUMBER>
-
-import { execSync } from 'child_process';
-import { Octokit } from '@octokit/rest';
-import OpenAI from 'openai';
 import fs from 'fs';
+import { Octokit } from '@octokit/rest';
 
 const REPO_OWNER = process.env.REPO_OWNER || 'your-org';
 const REPO_NAME = process.env.REPO_NAME || 'your-repo';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4';
 
-if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
-  console.error('Missing GITHUB_TOKEN or OPENAI_API_KEY');
+if (!GITHUB_TOKEN) {
+  console.error('Missing GITHUB_TOKEN');
   process.exit(1);
 }
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+// Read MCP-generated documentation or analysis (adjust the path as needed)
+let mcpOutput = '';
+try {
+  mcpOutput = fs.readFileSync('mcp-doc-output.txt', 'utf-8'); // Change filename as needed
+} catch (e) {
+  mcpOutput = '';
+}
 
 async function getChangedFiles(prNumber) {
   const { data } = await octokit.pulls.listFiles({
@@ -34,7 +33,7 @@ function runLint(files) {
   const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts'));
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
   try {
-    const result = execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
+    const result = require('child_process').execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
     return result;
   } catch (e) {
     return e.stdout || e.message;
@@ -43,7 +42,7 @@ function runLint(files) {
 
 function runBuildCheck() {
   try {
-    execSync('npm run build', { encoding: 'utf-8' });
+    require('child_process').execSync('npm run build', { encoding: 'utf-8' });
     return 'Build succeeded.';
   } catch (e) {
     return e.stdout || e.message;
@@ -52,7 +51,7 @@ function runBuildCheck() {
 
 function runAudit() {
   try {
-    const result = execSync('npm audit --json', { encoding: 'utf-8' });
+    const result = require('child_process').execSync('npm audit --json', { encoding: 'utf-8' });
     const audit = JSON.parse(result);
     const total = audit.metadata.vulnerabilities.total;
     if (total === 0) return 'No known vulnerabilities 🚦';
@@ -62,20 +61,13 @@ function runAudit() {
   }
 }
 
-async function generateLLMReview(diff) {
-  const llmPrompt = `You are an expert code reviewer. Please provide:\n- A concise summary of the changes\n- Constructive code review comments (style, bugs, best practices)\n- Refactoring suggestions\n- Accessibility and security notes if relevant\n- A friendly closing statement\n\nDiff:\n${diff}`;
-  const response = await openai.chat.completions.create({
-    model: OPENAI_MODEL,
-    messages: [
-      { role: 'user', content: llmPrompt }
-    ],
-    max_tokens: 500,
-  });
-  let content = response.choices[0].message.content.trim();
-  if (!content.endsWith('.') && !content.endsWith('!') && !content.endsWith('?')) {
-    content += '\n\nThank you for your contribution! 🚀';
+function runTestCoverage() {
+  try {
+    const result = require('child_process').execSync('npm test -- --coverage', { encoding: 'utf-8' });
+    return result;
+  } catch (e) {
+    return e.stdout || e.message;
   }
-  return content;
 }
 
 async function getExistingComments(prNumber) {
@@ -123,6 +115,13 @@ async function postPRCommentIfNew(prNumber, body) {
   console.log('Posted automated review comment to PR #' + prNumber);
 }
 
+async function generateMCPReview() {
+  if (!mcpOutput) {
+    return 'No MCP documentation or analysis available.';
+  }
+  return `#### 💡 **MCP Suggestions & Refactoring**\n${mcpOutput}`;
+}
+
 async function main() {
   const prNumber = process.argv[2];
   if (!prNumber) {
@@ -134,42 +133,37 @@ async function main() {
   const lintResult = runLint(files);
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
+  const testCoverage = runTestCoverage();
+  const mcpReview = await generateMCPReview();
 
-  // Get PR diff
-  const { data: pr } = await octokit.pulls.get({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    pull_number: prNumber,
-  });
-  const diff = pr.diff_url ? execSync(`curl -sL ${pr.diff_url}`, { encoding: 'utf-8' }) : '';
-  const llmReview = await generateLLMReview(diff);
+  // High-level summary logic
+  let summary = 'All checks passed ✅';
+  if (
+    (lintResult && !/^No JS\/TS files to lint\./.test(lintResult) && /error|fail|✖|problems?/i.test(lintResult)) ||
+    /fail|error|✖/i.test(buildResult) ||
+    /Vulnerabilities found: [1-9]/.test(auditResult) ||
+    /No MCP documentation|error|fail|problem|issue/i.test(mcpReview) ||
+    /FAIL|error|problem|issue|not\s*covered|\b0%\b/i.test(testCoverage)
+  ) {
+    summary = 'Some issues found ⚠️';
+  }
 
-  const commentBody = `### 🤖 **AutoDoc Automated Review**
+  // Try to extract accessibility/security notes from MCP output
+  let accessibilityNotes = '';
+  let securityNotes = '';
+  if (mcpReview.includes('Accessibility Notes:')) {
+    accessibilityNotes = mcpReview.split('Accessibility Notes:')[1].split(/\n|Security Notes:/)[0].trim();
+  }
+  if (mcpReview.includes('Security Notes:')) {
+    securityNotes = mcpReview.split('Security Notes:')[1].split(/\n|$/)[0].trim();
+  }
 
----
-
-#### 🧹 **Lint Results**
-\`\`\`
-${lintResult}
-\`\`\`
-
-#### 🏗️ **Build Results**
-\`\`\`
-${buildResult}
-\`\`\`
-
-#### 🛡️ **Vulnerability Check**
-${auditResult}
-
-#### 💡 **AI Suggestions & Refactoring**
-${llmReview}
-
----`;
+  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n${mcpReview}\n\n${accessibilityNotes ? '#### ♿ **Accessibility Notes**\n' + accessibilityNotes + '\n' : ''}${securityNotes ? '#### 🔒 **Security Notes**\n' + securityNotes + '\n' : ''}---`;
 
   await postPRCommentIfNew(prNumber, commentBody);
 }
 
 main().catch(err => {
-  console.error(err);
+  console.error('Error in PR reviewer:', err);
   process.exit(1);
 });
