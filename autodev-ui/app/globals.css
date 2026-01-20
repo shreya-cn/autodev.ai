@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #ffffff;
+  --color-foreground: #000000;
+  --color-primary: #B9FF66;
+  --color-dark: #191A23;
+  --color-gray-light: #F3F3F3;
+  --color-gray: #B9B9B9;
+  --font-sans: 'Space Grotesk', sans-serif;
+}
+
+body {
+  background: #ffffff;
+  color: #000000;
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  width: 100%;
+}
+
+@supports (font-variation-settings: normal) {
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+html {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+html, body {
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
