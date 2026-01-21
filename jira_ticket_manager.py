@@ -22,7 +22,7 @@ JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN", os.getenv("CONFLUENCE_API_TOKEN"))
 # Jira transition mappings (these IDs may vary per project)
 TRANSITION_MAPPING = {
     "in_progress": {"name": "In Progress", "id": None},
-    "in_review": {"name": "Review", "id": None},
+    "in_review": {"name": "In Review", "id": None},
     "done": {"name": "Done", "id": None}
 }
 
@@ -246,7 +246,7 @@ class JiraTicketManager:
         
         status_names = {
             'in_progress': 'In Progress',
-            'in_review': 'Review',
+            'in_review': 'In Review',
             'done': 'Done'
         }
         
@@ -275,68 +275,6 @@ class JiraTicketManager:
         
         # Transition ticket
         return self.transition_ticket(ticket_key, status)
-    
-    def get_all_open_tickets(self, project_key: str = 'KAN') -> List[Dict]:
-        """Get all open tickets from a specific project (default: KAN)."""
-        try:
-            # JQL query to get open tickets from specific project
-            jql = f'project = {project_key} AND status != Done AND status != Closed ORDER BY updated DESC'
-            
-            # Use the new API endpoint
-            url = f"{self.jira_url}/rest/api/3/search/jql"
-            headers = {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            }
-            payload = {
-                'jql': jql,
-                'maxResults': 100,
-                'fields': ['summary', 'status', 'assignee', 'priority', 'issuetype', 'updated', 'created']
-            }
-            
-            response = self.session.post(url, json=payload, headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                tickets = []
-                
-                for issue in data.get('issues', []):
-                    fields = issue.get('fields', {})
-                    assignee_name = "Unassigned"
-                    
-                    if fields.get('assignee'):
-                        assignee_name = fields['assignee'].get('displayName', 'Unassigned')
-                    
-                    priority_name = "Medium"
-                    if fields.get('priority'):
-                        priority_name = fields['priority'].get('name', 'Medium')
-                    
-                    tickets.append({
-                        'id': issue['id'],
-                        'key': issue['key'],
-                        'summary': fields.get('summary', 'No summary'),
-                        'status': fields.get('status', {}).get('name', 'Unknown'),
-                        'assignee': assignee_name,
-                        'priority': priority_name,
-                        'type': fields.get('issuetype', {}).get('name', 'Task'),
-                        'updated': fields.get('updated', ''),
-                        'created': fields.get('created', '')
-                    })
-                
-                # Only print to stderr to avoid polluting JSON output
-                import sys
-                print(f"✓ Fetched {len(tickets)} open tickets from project {project_key}", file=sys.stderr)
-                return tickets
-            else:
-                print(f"Error: Failed to fetch tickets (Status: {response.status_code})")
-                print(f"Response: {response.text}")
-                return []
-                
-        except Exception as e:
-            print(f"Error fetching all tickets: {e}")
-            import traceback
-            traceback.print_exc()
-            return []
 
 
 def main():

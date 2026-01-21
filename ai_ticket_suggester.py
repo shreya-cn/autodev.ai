@@ -226,39 +226,6 @@ class AITicketSuggester:
             print(f"Error getting ticket {ticket_key}: {e}")
             return None
     
-    def extract_description_snippet(self, description: str, keyword: str, max_length: int = 100) -> str:
-        """Extract a meaningful snippet from description around the keyword."""
-        if not description or not keyword:
-            return ""
-        
-        desc_lower = description.lower()
-        keyword_lower = keyword.lower()
-        
-        # Find keyword position
-        pos = desc_lower.find(keyword_lower)
-        if pos == -1:
-            return ""
-        
-        # Get surrounding context
-        start = max(0, pos - 40)
-        end = min(len(description), pos + len(keyword) + 60)
-        
-        # Try to break at sentence or word boundaries
-        snippet = description[start:end].strip()
-        
-        # Clean up the snippet
-        if start > 0:
-            # Find first space to avoid cutting words
-            first_space = snippet.find(' ')
-            if first_space > 0:
-                snippet = snippet[first_space:].strip()
-        
-        # Limit length and add ellipsis
-        if len(snippet) > max_length:
-            snippet = snippet[:max_length].rsplit(' ', 1)[0] + "..."
-        
-        return snippet
-    
     def pattern_match_tickets(self, changed_files: List[str], all_tickets: List[Dict], current_ticket_info: Optional[Dict] = None) -> List[Dict]:
         """Pattern matching: Find tickets that might be related based on keywords, file paths, and current ticket."""
         candidates = []
@@ -289,31 +256,25 @@ class AITicketSuggester:
         for ticket in all_tickets:
             score = 0
             reasons = []
-            description_snippets = []
             
-            # Check description first (highest priority)
+            # Check summary for keywords
+            summary_lower = ticket['summary'].lower()
+            for keyword in all_keywords:
+                if keyword in summary_lower:
+                    score += 3 if keyword in ticket_keywords else 2
+                    source = "similar summary" if keyword in ticket_keywords else "file keyword"
+                    reasons.append(f"'{keyword}' ({source})")
+            
+            # Check description
             desc = ticket.get('description', '')
             if isinstance(desc, str) and desc:
                 desc_lower = desc.lower()
                 for keyword in all_keywords:
                     if keyword in desc_lower:
-                        score += 5 if keyword in ticket_keywords else 3
-                        # Extract contextual snippet instead of just keyword
-                        snippet = self.extract_description_snippet(desc, keyword)
-                        if snippet and snippet not in description_snippets:
-                            description_snippets.append(snippet)
-            
-            # Use first meaningful description snippet as reason
-            if description_snippets:
-                reasons.append(description_snippets[0])
-            
-            # Check summary for keywords (lower priority)
-            summary_lower = ticket['summary'].lower()
-            for keyword in all_keywords:
-                if keyword in summary_lower:
-                    score += 2 if keyword in ticket_keywords else 1
-                    if not reasons:  # Only use summary if no description snippet
-                        reasons.append(f"Related to: {ticket['summary']}")
+                        score += 2 if keyword in ticket_keywords else 1
+                        source = "similar description" if keyword in ticket_keywords else "file keyword"
+                        if not any(keyword in r for r in reasons):  # Avoid duplicates
+                            reasons.append(f"'{keyword}' in description ({source})")
             
             # Check labels and components
             for label in ticket.get('labels', []):
@@ -352,7 +313,7 @@ class AITicketSuggester:
             # Prepare context
             files_str = '\n'.join(f"  - {f}" for f in changed_files[:20])
             candidates_str = '\n'.join(
-                f"  {i+1}. {t['key']}: {t['description']} (Status: {t['status']})"
+                f"  {i+1}. {t['key']}: {t['summary']} (Status: {t['status']})"
                 for i, t in enumerate(candidate_tickets[:10])
             )
             
@@ -371,12 +332,12 @@ Candidate Related Tickets:
 
 Task: Analyze which tickets are most related to the current work. For each relevant ticket:
 1. Assign a relevance score (0-100)
-2. Provide a complete sentence explaining why it's related, rephrasing key information from the ticket description. The reason should clearly explain what the ticket is about and how it relates to the current work.
+2. Provide a brief reason why it's related
 
 Return ONLY a JSON array of the top 5 most relevant tickets in this exact format:
 [
-  {{"ticket": "KEY-123", "score": 85, "reason": "This ticket addresses authentication improvements which relates to the current login flow changes"}},
-  {{"ticket": "KEY-456", "score": 72, "reason": "This ticket implements user profile updates that share similar database schema modifications"}}
+  {{"ticket": "KEY-123", "score": 85, "reason": "Brief reason"}},
+  {{"ticket": "KEY-456", "score": 72, "reason": "Brief reason"}}
 ]
 
 Return empty array [] if no tickets are related."""
@@ -402,13 +363,9 @@ Return empty array [] if no tickets are related."""
             
             ai_suggestions = json.loads(ai_response)
             
-            # Merge AI scores with ticket data and filter by relevance threshold
+            # Merge AI scores with ticket data
             results = []
             for suggestion in ai_suggestions:
-                # Skip tickets with less than 60% relevance
-                if suggestion['score'] < 60:
-                    continue
-                    
                 ticket_key = suggestion['ticket']
                 # Find the full ticket data
                 for ticket in candidate_tickets:
@@ -426,14 +383,14 @@ Return empty array [] if no tickets are related."""
             
         except Exception as e:
             print(f"Error in AI analysis: {e}")
-            # Fallback to pattern matching results, filter by 60% threshold
+            # Fallback to pattern matching results
             return [{
                 'key': t['key'],
                 'summary': t['summary'],
                 'status': t['status'],
                 'score': min(t['match_score'] * 10, 100),
                 'ai_reason': ', '.join(t['match_reasons'][:2])
-            } for t in candidate_tickets[:5] if min(t['match_score'] * 10, 100) >= 60]
+            } for t in candidate_tickets[:5]]
     
     def generate_daily_report(self, current_ticket: str, suggestions: List[Dict]) -> str:
         """Generate a markdown report with ticket suggestions."""
@@ -483,29 +440,41 @@ Return empty array [] if no tickets are related."""
     
     def suggest_related_tickets(self, current_ticket: str) -> List[Dict]:
         """Main function: Suggest related tickets using hybrid approach."""
+        print(f"\n🔍 Analyzing related tickets for {current_ticket}...")
         
         # Step 1: Get current ticket info
         current_ticket_info = self.get_ticket_info(current_ticket)
+        if current_ticket_info:
+            print(f"📋 Current: {current_ticket_info['summary']}")
         
         # Step 2: Get code changes
         changed_files = self.get_changed_files()
         commits = self.get_recent_commits(limit=3)
         
         if not changed_files:
+            print("ℹ️  No recent code changes found (this is normal for new branches)")
             # Even without code changes, we can find similar tickets based on description
             changed_files = []
         
+        if changed_files:
+            print(f"📁 Analyzing {len(changed_files)} changed files...")
+        
         # Step 3: Get all open tickets
         all_tickets = self.get_all_open_tickets(exclude_ticket=current_ticket)
+        print(f"🎫 Found {len(all_tickets)} open tickets in Jira")
         
         if not all_tickets:
+            print("ℹ️  No other open tickets found")
             return []
         
         # Step 4: Pattern matching to narrow down candidates (now includes current ticket description)
         candidates = self.pattern_match_tickets(changed_files, all_tickets, current_ticket_info)
         
         if not candidates:
+            print("ℹ️  No matching tickets found (your work appears independent)")
             return []
+        
+        print(f"🔍 Pattern matching found {len(candidates)} candidate tickets")
         
         # Step 5: AI analysis for final ranking
         commit_summary = '\n'.join(f"- {c['subject']}" for c in commits)
@@ -515,6 +484,14 @@ Return empty array [] if no tickets are related."""
             commit_summary, 
             candidates
         )
+        
+        if suggestions:
+            print(f"✅ AI analysis completed: {len(suggestions)} related tickets identified")
+        else:
+            print("ℹ️  AI found no strongly related tickets")
+        
+        # Step 6: Generate daily report
+        report_path = self.generate_daily_report(current_ticket, suggestions)
         
         return suggestions
 
