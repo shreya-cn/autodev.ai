@@ -483,41 +483,29 @@ Return empty array [] if no tickets are related."""
     
     def suggest_related_tickets(self, current_ticket: str) -> List[Dict]:
         """Main function: Suggest related tickets using hybrid approach."""
-        print(f"\n🔍 Analyzing related tickets for {current_ticket}...")
         
         # Step 1: Get current ticket info
         current_ticket_info = self.get_ticket_info(current_ticket)
-        if current_ticket_info:
-            print(f"📋 Current: {current_ticket_info['summary']}")
         
         # Step 2: Get code changes
         changed_files = self.get_changed_files()
         commits = self.get_recent_commits(limit=3)
         
         if not changed_files:
-            print("ℹ️  No recent code changes found (this is normal for new branches)")
             # Even without code changes, we can find similar tickets based on description
             changed_files = []
         
-        if changed_files:
-            print(f"📁 Analyzing {len(changed_files)} changed files...")
-        
         # Step 3: Get all open tickets
         all_tickets = self.get_all_open_tickets(exclude_ticket=current_ticket)
-        print(f"🎫 Found {len(all_tickets)} open tickets in Jira")
         
         if not all_tickets:
-            print("ℹ️  No other open tickets found")
             return []
         
         # Step 4: Pattern matching to narrow down candidates (now includes current ticket description)
         candidates = self.pattern_match_tickets(changed_files, all_tickets, current_ticket_info)
         
         if not candidates:
-            print("ℹ️  No matching tickets found (your work appears independent)")
             return []
-        
-        print(f"🔍 Pattern matching found {len(candidates)} candidate tickets")
         
         # Step 5: AI analysis for final ranking
         commit_summary = '\n'.join(f"- {c['subject']}" for c in commits)
@@ -527,14 +515,6 @@ Return empty array [] if no tickets are related."""
             commit_summary, 
             candidates
         )
-        
-        if suggestions:
-            print(f"✅ AI analysis completed: {len(suggestions)} related tickets identified")
-        else:
-            print("ℹ️  AI found no strongly related tickets")
-        
-        # Step 6: Generate daily report
-        report_path = self.generate_daily_report(current_ticket, suggestions)
         
         return suggestions
 

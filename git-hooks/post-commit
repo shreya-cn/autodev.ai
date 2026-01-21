@@ -29,7 +29,6 @@ try:
         manager = JiraTicketManager()
         
         if not manager.validate_credentials():
-            print("Warning: Could not connect to Jira")
             return
         
         # Update ticket status
@@ -40,24 +39,12 @@ try:
         if branch:
             ticket_key = manager.extract_ticket_key(branch)
             if ticket_key:
-                # Run AI suggestions
-                print("\n🤖 Analyzing related tickets...")
+                # Run AI suggestions silently (report saved to file)
                 suggester = AITicketSuggester()
-                suggestions = suggester.suggest_related_tickets(ticket_key)
-                
-                # Display in terminal
-                if suggestions:
-                    print(f"\n🔗 Found {len(suggestions)} related tickets:")
-                    for i, s in enumerate(suggestions, 1):
-                        print(f"  {i}. {s['key']} - {s['summary']} ({s['score']}%)")
-                        print(f"     💡 {s['ai_reason']}")
-                    print(f"\n📄 Full report: related-tickets-reports/related-tickets-{Path.cwd().name}.md\n")
+                suggester.suggest_related_tickets(ticket_key)
     
     if __name__ == "__main__":
         update_ticket_and_suggest()
         
 except Exception as e:
-    import traceback
-    print(f"Warning: Ticket automation failed: {e}")
-    traceback.print_exc()
     pass

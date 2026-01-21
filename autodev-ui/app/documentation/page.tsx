@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { redirect } from 'next/navigation';
 
 interface DocumentationItem {
   service: string;
@@ -18,11 +20,16 @@ interface ConfluenceConfig {
 }
 
 export default function Documentation() {
+  const { data: session, status } = useSession();
   const [documentation, setDocumentation] = useState<DocumentationItem[]>([]);
   const [confluenceConfig, setConfluenceConfig] = useState<ConfluenceConfig | null>(null);
   const [microservices, setMicroservices] = useState<string[]>([]);
   const [selectedService, setSelectedService] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+
+  if (status === 'unauthenticated') {
+    redirect('/login');
+  }
 
   useEffect(() => {
     fetchDocumentation();
@@ -68,15 +75,14 @@ export default function Documentation() {
   return (
     <div className="min-h-screen bg-white px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
       <div className="max-w-[1600px] mx-auto">
-        <div className="space-y-6 md:space-y-8 lg:space-y-10">
-          {/* Header */}
-          <div className="bg-dark rounded-2xl md:rounded-3xl px-6 md:px-10 lg:px-14 xl:px-16 py-8 md:py-12 lg:py-14 xl:py-16 text-white shadow-xl">
-            <h1 className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold mb-3 md:mb-4 lg:mb-5 leading-tight">
-              <span className="text-primary">Documentation</span>
-            </h1>
-            <p className="text-sm md:text-base lg:text-lg xl:text-xl text-gray-300 leading-relaxed max-w-4xl">
-              Auto-generated project documentation and technical specifications
-            </p>
+        <div className="space-y-6 md:space-y-8 lg:space-y-10">{/* Header */}
+            <div className="bg-dark rounded-2xl md:rounded-3xl px-6 md:px-10 lg:px-14 xl:px-16 py-8 md:py-12 lg:py-14 xl:py-16 text-white shadow-xl">
+              <h1 className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold mb-3 md:mb-4 lg:mb-5 leading-tight">
+                <span className="text-primary">Documentation</span>
+              </h1>
+              <p className="text-sm md:text-base lg:text-lg xl:text-xl text-gray-300 leading-relaxed max-w-4xl">
+                Auto-generated project documentation and technical specifications
+              </p>
           </div>
 
           {/* Confluence Integration Info */}

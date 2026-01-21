@@ -18025,3 +18025,255 @@
    - 💡 Reason: Issues:  Significant API changes, including hooks and new routing patterns. Improvements:
 
 ---
+
+## 🎫 KAN-4 - 19:28:04
+
+### 🔍 AI-Suggested Related Tickets:
+
+1. **[KAN-8](https://autodev-ai.atlassian.net/browse/KAN-8)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: and better compatibility with modern CSS.
+- **Breaking changes**: Minimal breaking changes, but some
+
+2. **[KAN-7](https://autodev-ai.atlassian.net/browse/KAN-7)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: and better compatibility with modern CSS. - **Breaking Changes**: Minimal breaking changes, but some
+
+3. **[KAN-9](https://autodev-ai.atlassian.net/browse/KAN-9)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Automated Dependency Scan Outdated packages: react-router-dom:  5.3.4 → 7.12.0  (MAJOR) axios: ...
+
+4. **[KAN-6](https://autodev-ai.atlassian.net/browse/KAN-6)** - Add filter to users-list table
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add filter option to users-list table
+
+5. **[KAN-5](https://autodev-ai.atlassian.net/browse/KAN-5)** - Change table header
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add a new column in the users-list table.  The column name should be “Address”
+
+---
+
+## 🎫 KAN-4 - 19:28:12
+
+### 🔍 AI-Suggested Related Tickets:
+
+1. **[KAN-8](https://autodev-ai.atlassian.net/browse/KAN-8)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Automated Dependency Scan Outdated packages: react-router-dom:  5.3.4 → 7.12.0  (MAJOR) axios: ...
+
+2. **[KAN-7](https://autodev-ai.atlassian.net/browse/KAN-7)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: dependency scan detected outdated packages. Outdated packages: - react-router-dom: 5.3.4 → 7.11.0...
+
+3. **[KAN-9](https://autodev-ai.atlassian.net/browse/KAN-9)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Automated Dependency Scan Outdated packages: react-router-dom:  5.3.4 → 7.12.0  (MAJOR) axios: ...
+
+4. **[KAN-6](https://autodev-ai.atlassian.net/browse/KAN-6)** - Add filter to users-list table
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add filter option to users-list table
+
+5. **[KAN-5](https://autodev-ai.atlassian.net/browse/KAN-5)** - Change table header
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add a new column in the users-list table.  The column name should be “Address”
+
+---
+
+## 🎫 KAN-4 - 19:29:12
+
+### 🔍 AI-Suggested Related Tickets:
+
+1. **[KAN-8](https://autodev-ai.atlassian.net/browse/KAN-8)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Automated Dependency Scan Outdated packages: react-router-dom:  5.3.4 → 7.12.0  (MAJOR) axios: ...
+
+2. **[KAN-7](https://autodev-ai.atlassian.net/browse/KAN-7)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: dependency scan detected outdated packages. Outdated packages: - react-router-dom: 5.3.4 → 7.11.0...
+
+3. **[KAN-9](https://autodev-ai.atlassian.net/browse/KAN-9)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Automated Dependency Scan Outdated packages: react-router-dom:  5.3.4 → 7.12.0  (MAJOR) axios: ...
+
+4. **[KAN-6](https://autodev-ai.atlassian.net/browse/KAN-6)** - Add filter to users-list table
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add filter option to users-list table
+
+5. **[KAN-5](https://autodev-ai.atlassian.net/browse/KAN-5)** - Change table header
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add a new column in the users-list table.  The column name should be “Address”
+
+---
+
+## 🎫 KAN-4 - 19:30:12
+
+### 🔍 AI-Suggested Related Tickets:
+
+1. **[KAN-8](https://autodev-ai.atlassian.net/browse/KAN-8)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Scan Outdated packages: react-router-dom:  5.3.4 → 7.12.0  (MAJOR) axios:  0.21.1 → 1.13.2  (MA
+
+2. **[KAN-7](https://autodev-ai.atlassian.net/browse/KAN-7)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: packages. Outdated packages: - react-router-dom: 5.3.4 → 7.11.0 (MAJOR) - axios: 0.21.1 → 1.13.2...
+
+3. **[KAN-9](https://autodev-ai.atlassian.net/browse/KAN-9)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Scan Outdated packages: react-router-dom:  5.3.4 → 7.12.0  (MAJOR) axios:  0.21.1 → 1.13.2  (MA
+
+4. **[KAN-6](https://autodev-ai.atlassian.net/browse/KAN-6)** - Add filter to users-list table
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add filter option to users-list table
+
+5. **[KAN-5](https://autodev-ai.atlassian.net/browse/KAN-5)** - Change table header
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add a new column in the users-list table.  The column name should be “Address”
+
+---
+
+## 🎫 KAN-4 - 19:31:12
+
+### 🔍 AI-Suggested Related Tickets:
+
+1. **[KAN-8](https://autodev-ai.atlassian.net/browse/KAN-8)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: in the new versions, breaking changes, upgrade risks, and recommendations for upgrading. ### 1.
+
+2. **[KAN-7](https://autodev-ai.atlassian.net/browse/KAN-7)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: in the new version, breaking changes, upgrade risks, and recommendations. ### 1. `react-router-
+
+3. **[KAN-9](https://autodev-ai.atlassian.net/browse/KAN-9)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Issues:  Significant API changes, including hooks and new routing patterns. Improvements:
+
+4. **[KAN-6](https://autodev-ai.atlassian.net/browse/KAN-6)** - Add filter to users-list table
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add filter option to users-list table
+
+5. **[KAN-5](https://autodev-ai.atlassian.net/browse/KAN-5)** - Change table header
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add a new column in the users-list table.  The column name should be “Address”
+
+---
+
+## 🎫 KAN-4 - 19:32:12
+
+### 🔍 AI-Suggested Related Tickets:
+
+1. **[KAN-8](https://autodev-ai.atlassian.net/browse/KAN-8)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: support for React hooks, improved API for nested routes, and better handling of route matching.
+-
+
+2. **[KAN-7](https://autodev-ai.atlassian.net/browse/KAN-7)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: 18 features and has a more complex API for nested routing and data loading. - **New Version Improv
+
+3. **[KAN-9](https://autodev-ai.atlassian.net/browse/KAN-9)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: react-router-dom Issues:  Significant API changes, including hooks and new routing patterns....
+
+4. **[KAN-6](https://autodev-ai.atlassian.net/browse/KAN-6)** - Add filter to users-list table
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add filter option to users-list table
+
+5. **[KAN-5](https://autodev-ai.atlassian.net/browse/KAN-5)** - Change table header
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add a new column in the users-list table.  The column name should be “Address”
+
+---
+
+## 🎫 KAN-4 - 19:33:12
+
+### 🔍 AI-Suggested Related Tickets:
+
+1. **[KAN-8](https://autodev-ai.atlassian.net/browse/KAN-8)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: state and effects in functional components.
+- **Improvements in NEW version (7.12.0)**: Full...
+
+2. **[KAN-7](https://autodev-ai.atlassian.net/browse/KAN-7)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: thorough testing, especially if your application heavily relies on routing. ### 2. `axios` - **Old V
+
+3. **[KAN-9](https://autodev-ai.atlassian.net/browse/KAN-9)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: changes:  Removal of deprecated components and introduction of hooks-based API. Risk:  HIGH...
+
+4. **[KAN-6](https://autodev-ai.atlassian.net/browse/KAN-6)** - Add filter to users-list table
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add filter option to users-list table
+
+5. **[KAN-5](https://autodev-ai.atlassian.net/browse/KAN-5)** - Change table header
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add a new column in the users-list table.  The column name should be “Address”
+
+---
+
+## 🎫 KAN-4 - 19:34:12
+
+### 🔍 AI-Suggested Related Tickets:
+
+1. **[KAN-8](https://autodev-ai.atlassian.net/browse/KAN-8)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: state and effects in functional components.
+- **Improvements in NEW version (7.12.0)**: Full...
+
+2. **[KAN-7](https://autodev-ai.atlassian.net/browse/KAN-7)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: thorough testing, especially if your application heavily relies on routing. ### 2. `axios` - **Old V
+
+3. **[KAN-9](https://autodev-ai.atlassian.net/browse/KAN-9)** - Outdated npm dependencies detected
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: changes:  Removal of deprecated components and introduction of hooks-based API. Risk:  HIGH...
+
+4. **[KAN-6](https://autodev-ai.atlassian.net/browse/KAN-6)** - Add filter to users-list table
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add filter option to users-list table
+
+5. **[KAN-5](https://autodev-ai.atlassian.net/browse/KAN-5)** - Change table header
+   - 📊 Relevance: 100%
+   - 📋 Status: To Do
+   - 💡 Reason: Add a new column in the users-list table.  The column name should be “Address”
+
+---
