@@ -1,0 +1,10 @@
+{
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
+  "/api/documentation/route": "app/api/documentation/route.js",
+  "/api/github/pr-comments/route": "app/api/github/pr-comments/route.js",
+  "/api/jira/user-suggestions/route": "app/api/jira/user-suggestions/route.js",
+  "/api/jira/user-tickets/route": "app/api/jira/user-tickets/route.js",
+  "/documentation/page": "app/documentation/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js"
+}

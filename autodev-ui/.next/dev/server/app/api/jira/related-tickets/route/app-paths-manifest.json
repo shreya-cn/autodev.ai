@@ -1,0 +1,3 @@
+{
+  "/api/jira/related-tickets/route": "app/api/jira/related-tickets/route.js"
+}

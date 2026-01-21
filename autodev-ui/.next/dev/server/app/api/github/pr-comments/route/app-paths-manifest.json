@@ -1,0 +1,3 @@
+{
+  "/api/github/pr-comments/route": "app/api/github/pr-comments/route.js"
+}

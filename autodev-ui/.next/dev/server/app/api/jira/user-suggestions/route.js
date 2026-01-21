@@ -1,0 +1,11 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/jira/user-suggestions/route.js")
+R.c("server/chunks/node_modules_next_3d54ca1b._.js")
+R.c("server/chunks/node_modules_next-auth_ecdd8551._.js")
+R.c("server/chunks/node_modules_openid-client_d15f72b3._.js")
+R.c("server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js")
+R.c("server/chunks/node_modules_openai_f417a314._.js")
+R.c("server/chunks/node_modules_95786673._.js")
+R.c("server/chunks/[root-of-the-server]__fdc1af2a._.js")
+R.c("server/chunks/_next-internal_server_app_api_jira_user-suggestions_route_actions_a4633762.js")
+R.m("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/app/api/jira/user-suggestions/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)")
+module.exports=R.m("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/app/api/jira/user-suggestions/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)").exports
