@@ -33,6 +33,55 @@ The AutoDoc.ai project is a prototype designed to automate the generation of doc
 - **Purpose**: Central server for generating AI-enhanced documentation and release notes.
 - **Documentation**: Located in the `autodoc-ai-mcp-server` folder.
 
+## 6. **Mid-Sprint & Sprint End Report Generator**
+
+Automatically generates and publishes sprint reports to Confluence:
+
+- **Mid-Sprint Review** (at sprint midpoint): Progress tracking, at-risk items, high-priority work
+- **Sprint End Report** (on sprint last day): Final velocity, spillover items, retrospective
+- Visual progress charts (donut charts with completion %)
+- AI-powered insights and recommendations
+- Automatic scheduling with GitHub Actions (daily checks)
+
+### Setup
+
+**Option 1: Automatic (GitHub Actions - Recommended)**
+
+1. Push code to GitHub:
+```bash
+git add .
+git commit -m "Add sprint reports"
+git push
+```
+
+2. Add secrets in GitHub (Repo Settings → Secrets and variables → Actions):
+   - `CONFLUENCE_URL`
+   - `CONFLUENCE_USER`
+   - `CONFLUENCE_API_TOKEN`
+   - `SPACE_KEY`
+   - `JIRA_BOARD_ID`
+   - `CONFLUENCE_PROJECT_KEY`
+   - `JIRA_STORY_POINTS_FIELD`
+   - `OPENAI_API_KEY` (optional)
+
+3. Done! Workflow runs daily at 09:00 UTC and generates reports when needed.
+
+**Option 2: Manual Testing**
+
+```bash
+# Test both report types immediately
+python3 test_reports.py both
+
+# Only midpoint report
+python3 test_reports.py midpoint
+
+# Only end-of-sprint report
+python3 test_reports.py end
+
+# Check what will run (automatic date checking)
+python3 run_midpoint_check.py
+```
+
 ---
 
 ## Features

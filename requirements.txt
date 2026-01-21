@@ -1,0 +1,16 @@
+# Mid-Sprint Report Generator Dependencies
+# Install with: python3 -m pip install -r requirements.txt
+
+# Core dependencies
+requests==2.32.5
+python-dotenv==1.2.1
+
+# AI-powered insights
+openai==2.15.0
+
+# Data visualization (donut chart)
+matplotlib==3.10.8
+pillow==12.1.0
+
+# Scheduler
+schedule==1.2.0
