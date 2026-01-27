@@ -27,7 +27,7 @@ class LLMConfluenceJiraAutomator:
         self.jira_base = ATLASSIAN_BASE.replace("/wiki", "")
 
     def get_page_content(self, page_id: str) -> str:
-        url = f"{ATLASSIAN_BASE}/rest/api/content/{page_id}?expand=body.storage"
+        url = f"{ATLASSIAN_BASE}/wiki/rest/api/content/{page_id}?expand=body.storage"
         resp = requests.get(url, headers=HEADERS)
         resp.raise_for_status()
         data = resp.json()
