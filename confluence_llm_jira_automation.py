@@ -96,7 +96,7 @@ class LLMConfluenceJiraAutomator:
         print(f"Jira Failed: {resp.text}")
         return None
 
-    def process_confluence_page(self, page_id: str):
+def process_confluence_page(self, page_id: str):
         page_data = self.get_page_details(page_id)
         original_html = page_data["body"]["storage"]["value"]
         
@@ -104,18 +104,27 @@ class LLMConfluenceJiraAutomator:
         
         created_keys = []
         for req in llm_result.get("requirements", []):
-            # Safe parsing
             t = req.get("title") if isinstance(req, dict) else str(req)[:50]
             d = req.get("description") if isinstance(req, dict) else str(req)
-            
             key = self.create_jira_ticket(t, d, page_id)
             if key: created_keys.append(key)
 
-        # Build update
+        # Build update with Summary
         new_content = original_html + f"<hr/><h2>AI Jira Sync</h2><p>{llm_result.get('summary')}</p>"
+        
+        # ADDED: Logic to insert the Mermaid Diagram
+        if llm_result.get("diagram_code"):
+            new_content += f"""
+            <h3>Process Flow Diagram</h3>
+            <ac:structured-macro ac:name="mermaid">
+              <ac:plain-text-body><![CDATA[{llm_result['diagram_code']}]]></ac:plain-text-body>
+            </ac:structured-macro>
+            """
+
         if created_keys:
-            links = "".join([f'<li>{k}</li>' for k in created_keys])
-            new_content += f"<ul>{links}</ul>"
+            # Added links to make the keys clickable in Confluence
+            links = "".join([f'<li><a href="{self.jira_base}/browse/{k}">{k}</a></li>' for k in created_keys])
+            new_content += f"<h3>Created Tickets</h3><ul>{links}</ul>"
             
         self.update_confluence_page(page_id, new_content)
         print(f"Success. {len(created_keys)} tickets in backlog.")
