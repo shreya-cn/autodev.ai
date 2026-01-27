@@ -111,16 +111,7 @@ class LLMConfluenceJiraAutomator:
 
         # Build update with Summary
         new_content = original_html + f"<hr/><h2>AI Jira Sync</h2><p>{llm_result.get('summary')}</p>"
-        
-        # ADDED: Logic to insert the Mermaid Diagram
-        if llm_result.get("diagram_code"):
-            new_content += f"""
-            <h3>Process Flow Diagram</h3>
-            <ac:structured-macro ac:name="mermaid">
-              <ac:plain-text-body><![CDATA[{llm_result['diagram_code']}]]></ac:plain-text-body>
-            </ac:structured-macro>
-            """
-
+    
         if created_keys:
             # Added links to make the keys clickable in Confluence
             links = "".join([f'<li><a href="{self.jira_base}/browse/{k}">{k}</a></li>' for k in created_keys])
