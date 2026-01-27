@@ -72,6 +72,7 @@ class LLMConfluenceJiraAutomator:
         return json.loads(resp.choices[0].message.content)
 
     def create_jira_ticket(self, title: str, description: str, page_id: str) -> Optional[str]:
+        print(f"[DEBUG] JIRA_PROJECT_KEY: '{JIRA_PROJECT_KEY}'")  # Debug print
         url = f"{self.jira_base}/rest/api/3/issue"
         # API v3 requires Atlassian Document Format (ADF) for the description
         payload = {
