@@ -96,7 +96,7 @@ class LLMConfluenceJiraAutomator:
         print(f"Jira Failed: {resp.text}")
         return None
 
-def process_confluence_page(self, page_id: str):
+    def process_confluence_page(self, page_id: str):
         page_data = self.get_page_details(page_id)
         original_html = page_data["body"]["storage"]["value"]
         
