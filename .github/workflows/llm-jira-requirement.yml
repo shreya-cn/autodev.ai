@@ -1,0 +1,52 @@
+name: LLM Jira Automation for Requirements Docs
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  llm-jira-requirement:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Find new requirement docs
+        id: find-reqs
+        run: |
+          # Find files newly added in this push with 'requirement' in the name
+          git fetch origin ${{ github.event.before }}
+          NEW_FILES=$(git diff --name-only --diff-filter=A ${{ github.event.before }} ${{ github.sha }} | grep -i 'requirement' | grep -Ei '\.(md|adoc)$' || true)
+          echo "New requirement docs:"
+          echo "$NEW_FILES"
+          echo "new_reqs<<EOF" >> $GITHUB_OUTPUT
+          echo "$NEW_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run LLM Confluence-Jira Automation for each new requirement doc
+        if: steps.find-reqs.outputs.new_reqs != ''
+        env:
+          CONFLUENCE_URL: ${{ secrets.CONFLUENCE_URL }}
+          CONFLUENCE_USER: ${{ secrets.CONFLUENCE_USER }}
+          CONFLUENCE_API_TOKEN: ${{ secrets.CONFLUENCE_API_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SPACE_KEY: ${{ secrets.SPACE_KEY }}
+        run: |
+          echo "Processing new requirement docs with LLM Jira automation..."
+          for file in $(echo "$NEW_FILES"); do
+            # You may need to map the file to a Confluence page ID or upload it first
+            echo "Would process: $file"
+            # Example: python confluence_llm_jira_automation.py --page-id <PAGE_ID>
+            # You need to implement logic to get the Confluence page ID for the uploaded doc
+          done

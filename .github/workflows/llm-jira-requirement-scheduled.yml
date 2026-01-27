@@ -1,0 +1,38 @@
+name: Scheduled LLM Jira Automation for Requirements Docs
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Runs every hour; adjust as needed
+  workflow_dispatch:
+
+jobs:
+  llm-jira-requirement-scheduled:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run scheduled LLM Confluence-Jira Automation
+        env:
+          CONFLUENCE_URL: ${{ secrets.CONFLUENCE_URL }}
+          CONFLUENCE_USER: ${{ secrets.CONFLUENCE_USER }}
+          CONFLUENCE_API_TOKEN: ${{ secrets.CONFLUENCE_API_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SPACE_KEY: ${{ secrets.SPACE_KEY }}
+        run: |
+          # This script should:
+          # 1. Fetch all Confluence pages with 'requirement' in the title/content
+          # 2. Check if each page has already been processed (e.g., by label, property, or local file)
+          # 3. For new pages, run: python confluence_llm_jira_automation.py --page-id <PAGE_ID>
+          # 4. Mark the page as processed (e.g., add a label or property)
+          python scripts/process_new_requirements.py
