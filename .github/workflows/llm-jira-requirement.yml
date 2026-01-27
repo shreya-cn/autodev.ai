@@ -42,6 +42,7 @@ jobs:
           CONFLUENCE_API_TOKEN: ${{ secrets.CONFLUENCE_API_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SPACE_KEY: ${{ secrets.SPACE_KEY }}
+          JIRA_PROJECT_KEY: ${{ secrets.JIRA_PROJECT_KEY }}
         run: |
           echo "Processing new requirement docs with LLM Jira automation..."
           for file in $(echo "$NEW_FILES"); do
