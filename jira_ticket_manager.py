@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Jira Configuration
-JIRA_URL = os.getenv("JIRA_URL", "https://autodev-ai.atlassian.net")
+JIRA_URL = os.getenv("JIRA_URL")
 JIRA_USER = os.getenv("JIRA_USER", os.getenv("CONFLUENCE_USER"))
 JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN", os.getenv("CONFLUENCE_API_TOKEN"))
 
@@ -126,10 +126,8 @@ class JiraTicketManager:
             if response.status_code == 200:
                 return response.json().get("transitions", [])
             else:
-                print(f"Error: Failed to fetch transitions (Status: {response.status_code})")
                 return []
         except Exception as e:
-            print(f"Error fetching transitions: {e}")
             return []
     
     def transition_ticket(self, ticket_key: str, transition_name: str) -> bool:
@@ -138,7 +136,6 @@ class JiraTicketManager:
         transitions = self.get_available_transitions(ticket_key)
         
         if not transitions:
-            print(f"Error: No transitions available for {ticket_key}")
             return False
         
         # Find the matching transition
@@ -150,9 +147,6 @@ class JiraTicketManager:
                 break
         
         if not transition_id:
-            available = [f"{t['name']} -> {t['to']['name']}" for t in transitions]
-            print(f"Error: Transition '{transition_name}' not available for {ticket_key}")
-            print(f"Available transitions: {', '.join(available)}")
             return False
         
         # Execute transition
@@ -162,14 +156,10 @@ class JiraTicketManager:
             response = self.session.post(url, json=payload)
             
             if response.status_code == 204:
-                print(f"✓ Ticket {ticket_key} transitioned to '{transition_name}'")
                 return True
             else:
-                print(f"Error: Failed to transition ticket (Status: {response.status_code})")
-                print(f"Response: {response.text}")
                 return False
         except Exception as e:
-            print(f"Error transitioning ticket: {e}")
             return False
     
     def check_branch_status(self) -> str:
@@ -216,27 +206,17 @@ class JiraTicketManager:
         if not branch:
             return False
         
-        print(f"Current branch: {branch}")
-        
         # Extract ticket key
         ticket_key = self.extract_ticket_key(branch)
         
         if not ticket_key:
-            print("No Jira ticket found in branch name")
-            print("Expected format: feature/PROJ-123-description or PROJ-123")
             return False
-        
-        print(f"Found ticket: {ticket_key}")
         
         # Get ticket info
         ticket_info = self.get_ticket_info(ticket_key)
         
         if not ticket_info:
             return False
-        
-        print(f"Ticket: {ticket_info['key']} - {ticket_info['summary']}")
-        print(f"Current status: {ticket_info['status']}")
-        print(f"Assignee: {ticket_info['assignee']}")
         
         # Determine desired status
         desired_status = self.check_branch_status()
@@ -251,11 +231,9 @@ class JiraTicketManager:
         }
         
         target_status = status_names.get(desired_status)
-        print(f"Target status: {target_status}")
         
         # Check if already in desired status
         if ticket_info['status'].lower() == target_status.lower():
-            print(f"✓ Ticket already in '{target_status}' status")
             return True
         
         # Transition ticket

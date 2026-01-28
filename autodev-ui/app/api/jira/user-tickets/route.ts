@@ -79,8 +79,7 @@ export async function GET() {
     }
 
     const resources = await resourcesRes.json();
-    console.log('Found resources:', resources.length);
-    
+
     if (!resources || resources.length === 0) {
       return NextResponse.json({ 
         error: 'No Jira sites found for your account',
@@ -109,8 +108,8 @@ export async function GET() {
 
     const currentUser = await userRes.json();
 
-    // Fetch all tickets from the SA project (ScrumAutoDev board)
-    const jql = `project = SA ORDER BY updated DESC`;
+    // Fetch only tickets in active sprint (exclude backlog)
+    const jql = `project = SCRUM AND sprint in openSprints() ORDER BY updated DESC`;
     
     console.log('Fetching tickets with JQL:', jql);
     

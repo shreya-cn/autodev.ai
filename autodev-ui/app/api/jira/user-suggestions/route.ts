@@ -53,7 +53,7 @@ export async function GET() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          jql: `project = SA AND assignee = currentUser() AND status != Done ORDER BY updated DESC`,
+          jql: `project = SCRUM AND assignee = currentUser() AND status != Done ORDER BY updated DESC`,
           maxResults: 50,
           fields: ['summary', 'description', 'status', 'issuetype', 'sprint']
         })
@@ -66,8 +66,6 @@ export async function GET() {
 
     const userTicketsData = await userTicketsRes.json();
     const userTickets = userTicketsData.issues || [];
-    
-    console.log(`\n=== Finding suggestions for ${userTickets.length} user tickets ===`);
 
     // Fetch unassigned tickets from current sprint and backlog
     const unassignedTicketsRes = await fetch(
@@ -80,16 +78,14 @@ export async function GET() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          jql: `project = SA AND assignee is EMPTY AND status != Done ORDER BY updated DESC`,
+          jql: `project = SCRUM AND assignee is EMPTY AND status != Done ORDER BY updated DESC`,
           maxResults: 100,
-          fields: ['summary', 'description', 'status', 'issuetype', 'sprint', 'created']
+          fields: ['summary', 'description', 'status', 'issuetype', 'sprint', 'created', 'customfield_10020']
         })
       }
     );
 
     const unassignedTicketsData = unassignedTicketsRes.ok ? (await unassignedTicketsRes.json()).issues || [] : [];
-    
-    console.log(`Found ${unassignedTicketsData.length} unassigned tickets`);
 
     // Helper function to extract description text from Jira's ADF format or plain text
     const extractDescription = (descriptionField: any): string => {
@@ -116,17 +112,26 @@ export async function GET() {
       userTickets.map(async (userTicket: any) => {
         const currentTicketSummary = userTicket.fields.summary || '';
         const currentTicketDescription = extractDescription(userTicket.fields.description) || 'No description';
-        
-        console.log(`\n--- Analyzing ${userTicket.key}: "${currentTicketSummary}" ---`);
 
         // Categorize unassigned tickets
         const categorizedTickets = unassignedTicketsData.map((ticket: any) => {
-          const hasSprint = ticket.fields.sprint && ticket.fields.sprint.length > 0;
-          const status = ticket.fields.status?.name?.toLowerCase() || '';
+          // Sprint can be in different fields depending on Jira configuration
+          const sprints = ticket.fields.sprint || ticket.fields.customfield_10020 || [];
           
+          // Check if ticket is in an active sprint (not future or closed)
           let category: 'current-sprint' | 'backlog' = 'backlog';
-          if (hasSprint && !status.includes('backlog')) {
-            category = 'current-sprint';
+          
+          // Handle both single sprint object and array of sprints
+          const sprintArray = Array.isArray(sprints) ? sprints : (sprints ? [sprints] : []);
+          
+          if (sprintArray.length > 0) {
+            // Check if any sprint is active
+            const hasActiveSprint = sprintArray.some((sprint: any) => 
+              sprint && sprint.state === 'active'
+            );
+            if (hasActiveSprint) {
+              category = 'current-sprint';
+            }
           }
           
           return {
@@ -169,7 +174,7 @@ TASK: Analyze the following unassigned tickets and identify which ones are HIGHL
 4. Dependencies or prerequisite work
 5. Common technical challenges
 
-Only return tickets with 70% or higher relevance.
+Only return tickets with 60% or higher relevance.
 
 UNASSIGNED TICKETS TO ANALYZE:
 ${ticketsForAnalysis.map((t, i) => `
@@ -191,11 +196,9 @@ RESPONSE FORMAT (JSON only, no markdown):
   ]
 }
 
-Only include tickets with relevance_score >= 70. Return empty array if no tickets meet the threshold.`;
+Only include tickets with relevance_score >= 60. Return empty array if no tickets meet the threshold.`;
 
         try {
-          console.log(`Calling OpenAI for ${userTicket.key}...`);
-          
           const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
@@ -213,13 +216,10 @@ Only include tickets with relevance_score >= 70. Return empty array if no ticket
           });
 
           const responseText = completion.choices[0]?.message?.content || '{}';
-          console.log(`OpenAI response for ${userTicket.key}:`, responseText);
           
           // Parse the response
           const llmResponse = JSON.parse(responseText.replace(/```json\n?/g, '').replace(/```\n?/g, ''));
           const relevantTickets = llmResponse.relevant_tickets || [];
-
-          console.log(`Found ${relevantTickets.length} relevant tickets from LLM`);
 
           // Map the results
           const mappedTickets = relevantTickets.map((item: any) => {
@@ -258,8 +258,6 @@ Only include tickets with relevance_score >= 70. Return empty array if no ticket
 
     // Filter out tickets with no suggestions
     const validSuggestions = suggestions.filter(s => s.suggestions.length > 0);
-    
-    console.log(`\n=== Total suggestions generated: ${validSuggestions.length} ===\n`);
 
     return NextResponse.json({ suggestions: validSuggestions });
 

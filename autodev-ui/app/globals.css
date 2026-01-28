@@ -3,11 +3,21 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  
+  /* Positivus Theme Colors */
+  --color-primary: #B9FF66;
+  --color-dark: #191A23;
+  --color-gray: #292A32;
+  --color-gray-light: #F3F3F3;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--color-primary);
+  --color-dark: var(--color-dark);
+  --color-gray: var(--color-gray);
+  --color-gray-light: var(--color-gray-light);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

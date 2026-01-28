@@ -40,9 +40,9 @@ export default function RelatedTickets() {
       const response = await fetch('/api/jira/user-suggestions');
       const data = await response.json();
       
-      // Check if session expired
-      if (data.logout) {
-        window.location.href = '/signout';
+      // Check if unauthorized or session expired
+      if (response.status === 401 || data.logout) {
+        window.location.href = '/login';
         return;
       }
       
@@ -118,7 +118,10 @@ export default function RelatedTickets() {
         </div>
         
         <div className="flex items-center justify-center mt-6 gap-2">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+          <div className="relative">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-800"></div>
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-transparent border-t-primary absolute top-0 left-0" style={{background: 'conic-gradient(from 0deg, #1a1a1a, #86efac, #1a1a1a)', borderRadius: '50%', WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 2px), #fff 0)', mask: 'radial-gradient(farthest-side, transparent calc(100% - 2px), #fff 0)'}}></div>
+          </div>
           <span className="text-sm text-gray font-medium">Loading related tickets...</span>
         </div>
       </div>
@@ -153,11 +156,14 @@ export default function RelatedTickets() {
       ) : (
         <div className="space-y-8">
           {(() => {
-            // Track duplicate tickets across groups
-            const ticketCounts = new Map<string, number>();
+            // Track which tickets each suggestion is related to
+            const ticketRelations = new Map<string, string[]>();
             suggestionGroups.forEach(group => {
               group.suggestions.forEach(ticket => {
-                ticketCounts.set(ticket.key, (ticketCounts.get(ticket.key) || 0) + 1);
+                if (!ticketRelations.has(ticket.key)) {
+                  ticketRelations.set(ticket.key, []);
+                }
+                ticketRelations.get(ticket.key)!.push(group.ticketKey);
               });
             });
 
@@ -175,19 +181,14 @@ export default function RelatedTickets() {
                   const isCurrentSprint = ticket.category === 'current-sprint';
                   const isBacklog = ticket.category === 'backlog';
                   
-                  const isDuplicate = ticketCounts.get(ticket.key)! > 1;
-                  
-                  const categoryBadge = isCurrentSprint 
-                    ? 'CURRENT SPRINT' 
-                    : 'BACKLOG';
-                  
-                  const categoryColor = isCurrentSprint
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-yellow-500 text-dark';
+                  const relatedTickets = ticketRelations.get(ticket.key) || [];
+                  const isDuplicate = relatedTickets.length > 1;
                   
                   const borderColor = isCurrentSprint
                     ? 'border-blue-500'
-                    : 'border-yellow-500';
+                    : isBacklog
+                    ? 'border-yellow-500'
+                    : 'border-primary';
                   
                   return (
                     <div
@@ -200,7 +201,7 @@ export default function RelatedTickets() {
                             <path d="M3 6l7-5 7 5v10l-7 5-7-5V6zm6 0v9l1 .7 1-.7V6l-1-.7-1 .7z"/>
                           </svg>
                           <div className="absolute right-0 top-6 hidden group-hover:block bg-dark text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                            Relevant to {ticketCounts.get(ticket.key)} tickets
+                            Relevant to: {relatedTickets.join(', ')}
                           </div>
                         </div>
                       )} <div className="flex items-start justify-between mb-2 sm:mb-3">
@@ -209,9 +210,16 @@ export default function RelatedTickets() {
                           <span className="text-xs sm:text-sm font-semibold bg-dark text-primary px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
                             {ticket.key}
                           </span>
-                          <span className={`text-xs font-semibold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded ${categoryColor}`}>
-                            {categoryBadge}
-                          </span>
+                          {isCurrentSprint && (
+                            <span className="text-xs font-semibold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-blue-500 text-white">
+                              CURRENT SPRINT
+                            </span>
+                          )}
+                          {isBacklog && (
+                            <span className="text-xs font-semibold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-yellow-500 text-dark">
+                              BACKLOG
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-xs bg-primary text-dark px-2 py-1 rounded-full font-semibold">
@@ -234,7 +242,7 @@ export default function RelatedTickets() {
                           <span className="text-xs text-gray mt-1">{ticket.assignee}</span>
                         </div>
                         <a
-                          href={`https://autodev-ai.atlassian.net/browse/${ticket.key}`}
+                          href={`${process.env.NEXT_PUBLIC_JIRA_URL || process.env.JIRA_URL}/browse/${ticket.key}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs md:text-sm text-primary font-bold hover:underline"

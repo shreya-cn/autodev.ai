@@ -1,7 +1,7 @@
 require('dotenv').config();
 const https = require('https');
 
-const JIRA_URL = process.env.JIRA_URL || 'https://autodev-ai.atlassian.net';
+const JIRA_URL = process.env.JIRA_URL;
 const JIRA_EMAIL = process.env.JIRA_EMAIL;
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
 const PROJECT_KEY = 'SA';
@@ -91,7 +91,7 @@ async function createTicket(ticket) {
     });
 
     const options = {
-      hostname: 'autodev-ai.atlassian.net',
+      hostname: new URL(JIRA_URL).hostname,
       port: 443,
       path: '/rest/api/3/issue',
       method: 'POST',

@@ -91,9 +91,9 @@ export async function GET() {
 
     // Get Confluence configuration
     const confluenceConfig = {
-      url: process.env.CONFLUENCE_URL || 'https://autodev-ai.atlassian.net',
-      spaceKey: process.env.SPACE_KEY || '~712020a1106f7965b7429fa169a05d4788f4d5',
-      user: process.env.CONFLUENCE_USER || 'sharan99r@gmail.com'
+      url: process.env.CONFLUENCE_URL,
+      spaceKey: process.env.SPACE_KEY,
+      user: process.env.CONFLUENCE_USER
     };
 
     return NextResponse.json({
@@ -107,9 +107,9 @@ export async function GET() {
       error: 'Failed to fetch documentation',
       documentation: [],
       confluenceConfig: {
-        url: 'https://autodev-ai.atlassian.net',
-        spaceKey: '~712020a1106f7965b7429fa169a05d4788f4d5',
-        user: 'sharan99r@gmail.com'
+        url: process.env.CONFLUENCE_URL,
+        spaceKey: process.env.SPACE_KEY,
+        user: process.env.CONFLUENCE_USER
       },
       microservices: ['identityprovider', 'enrollment', 'usermanagement', 'vehiclemanagement']
     });

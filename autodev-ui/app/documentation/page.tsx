@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 interface DocumentationItem {
   service: string;
@@ -21,19 +21,24 @@ interface ConfluenceConfig {
 
 export default function Documentation() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [documentation, setDocumentation] = useState<DocumentationItem[]>([]);
   const [confluenceConfig, setConfluenceConfig] = useState<ConfluenceConfig | null>(null);
   const [microservices, setMicroservices] = useState<string[]>([]);
   const [selectedService, setSelectedService] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
-  if (status === 'unauthenticated') {
-    redirect('/login');
-  }
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
 
   useEffect(() => {
-    fetchDocumentation();
-  }, []);
+    if (status === 'authenticated') {
+      fetchDocumentation();
+    }
+  }, [status]);
 
   const fetchDocumentation = async () => {
     try {
@@ -184,37 +189,6 @@ export default function Documentation() {
                   </div>
                 ))
               )}
-            </div>
-          </div>
-
-          {/* Getting Started */}
-          <div className="bg-gray-light rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 xl:p-12 shadow-lg">
-            <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-dark mb-4 md:mb-6">Documentation Structure</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded-xl p-5">
-                <h3 className="text-lg font-bold text-dark mb-3">📐 Architecture Design</h3>
-                <p className="text-sm text-gray-700">
-                  High-level system architecture, component interactions, and design patterns for each microservice.
-                </p>
-              </div>
-              <div className="bg-white rounded-xl p-5">
-                <h3 className="text-lg font-bold text-dark mb-3">🔍 Detailed Design</h3>
-                <p className="text-sm text-gray-700">
-                  In-depth technical specifications, class diagrams, and implementation details.
-                </p>
-              </div>
-              <div className="bg-white rounded-xl p-5">
-                <h3 className="text-lg font-bold text-dark mb-3">🔌 OpenAPI Specification</h3>
-                <p className="text-sm text-gray-700">
-                  REST API documentation with endpoints, request/response schemas, and examples.
-                </p>
-              </div>
-              <div className="bg-white rounded-xl p-5">
-                <h3 className="text-lg font-bold text-dark mb-3">📝 Auto-Upload</h3>
-                <p className="text-sm text-gray-700">
-                  Documentation is automatically uploaded to Confluence with hierarchical structure and diagram rendering.
-                </p>
-              </div>
             </div>
           </div>
         </div>

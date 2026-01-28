@@ -1,7 +1,7 @@
 require('dotenv').config();
 const https = require('https');
 
-const JIRA_URL = process.env.JIRA_URL || 'https://autodev-ai.atlassian.net';
+const JIRA_URL = process.env.JIRA_URL;
 const JIRA_EMAIL = process.env.JIRA_EMAIL;
 const JIRA_API_TOKEN = process.env.JIRA_API_TOKEN;
 const PROJECT_KEY = 'SA';
@@ -11,8 +11,9 @@ const auth = Buffer.from(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
 // First get the account ID
 async function getAccountId() {
   return new Promise((resolve, reject) => {
+    const hostname = new URL(JIRA_URL).hostname;
     const options = {
-      hostname: 'autodev-ai.atlassian.net',
+      hostname: hostname,
       port: 443,
       path: '/rest/api/3/myself',
       method: 'GET',
@@ -57,7 +58,7 @@ async function assignTicket(ticketKey, accountId) {
     });
 
     const options = {
-      hostname: 'autodev-ai.atlassian.net',
+      hostname: new URL(JIRA_URL).hostname,
       port: 443,
       path: `/rest/api/3/issue/${ticketKey}/assignee`,
       method: 'PUT',

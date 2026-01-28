@@ -19,7 +19,7 @@ load_dotenv()
 CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")
 CONFLUENCE_USER = os.getenv("CONFLUENCE_USER")
 CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
-SPACE_KEY = os.getenv("SPACE_KEY", "XFLOW")
+SPACE_KEY = os.getenv("SPACE_KEY")
 
 # Microservices to scan for documentation
 MICROSERVICES = [

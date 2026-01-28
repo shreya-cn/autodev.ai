@@ -1,75 +1,84 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../auth/[...nextauth]/route';
 
 export async function GET() {
   try {
-    // Get the current ticket from git branch and run AI suggester
-    const workspaceRoot = process.cwd().replace('/autodev-ui', '');
-    const { stdout } = await execAsync(
-      `cd "${workspaceRoot}" && python3 ai_ticket_suggester.py 2>&1`,
-      { 
-        shell: '/bin/zsh',
-        env: { ...process.env }
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.accessToken) {
+      return NextResponse.json({ 
+        tickets: [],
+        currentTicket: ''
+      });
+    }
+
+    // Get accessible Jira resources
+    const resourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+      headers: {
+        'Authorization': `Bearer ${session.accessToken}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!resourcesRes.ok) {
+      throw new Error('Failed to fetch resources');
+    }
+
+    const resources = await resourcesRes.json();
+    if (!resources || resources.length === 0) {
+      throw new Error('No Jira sites found');
+    }
+
+    const cloudId = resources[0].id;
+    const jiraBaseUrl = resources[0].url;
+
+    // Fetch tickets that are related (e.g., OAuth, authentication, API related)
+    const jql = `project = SCRUM AND (summary ~ "OAuth" OR summary ~ "authentication" OR summary ~ "API" OR summary ~ "session" OR summary ~ "token") ORDER BY created DESC`;
+    
+    const searchRes = await fetch(
+      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.accessToken}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jql: jql,
+          maxResults: 10,
+          fields: ['summary', 'status', 'priority', 'description']
+        })
       }
     );
 
-    // Parse the output to extract related tickets
-    // The Python script outputs JSON or structured text
-    const lines = stdout.split('\n');
-    const tickets: any[] = [];
-    let currentTicket = '';
+    if (!searchRes.ok) {
+      throw new Error('Failed to search tickets');
+    }
 
-    // Extract current ticket and suggestions from output
-    lines.forEach(line => {
-      if (line.includes('Current:')) {
-        currentTicket = line.split(':')[1]?.trim() || '';
-      }
-      // Parse ticket information from output
-      const ticketMatch = line.match(/(\w+-\d+)\s+-\s+(.+?)\s+\((\d+)%\s+match\)/);
-      if (ticketMatch) {
-        tickets.push({
-          key: ticketMatch[1],
-          summary: ticketMatch[2],
-          score: parseInt(ticketMatch[3]),
-          status: 'Unknown',
-          reason: 'Related to current work',
-        });
-      }
+    const searchData = await searchRes.json();
+    
+    const tickets = (searchData.issues || []).map((issue: any) => ({
+      key: issue.key,
+      summary: issue.fields.summary,
+      status: issue.fields.status?.name || 'Unknown',
+      score: 85, // Mock similarity score
+      reason: 'Related to authentication and API work',
+    }));
+
+    return NextResponse.json({ 
+      tickets,
+      currentTicket: tickets.length > 0 ? tickets[0].key : '',
+      jiraBaseUrl
     });
-
-    return NextResponse.json({ tickets, currentTicket });
   } catch (error) {
     console.error('Error fetching related tickets:', error);
     
-    // Return mock data
+    // Return empty on error instead of mock data
     return NextResponse.json({
-      tickets: [
-        {
-          key: 'KAN-6',
-          summary: 'Add filter to users-list table',
-          status: 'To Do',
-          score: 100,
-          reason: 'Add filter option to users-list table',
-        },
-        {
-          key: 'KAN-5',
-          summary: 'Change table header',
-          status: 'To Do',
-          score: 100,
-          reason: 'Add a new column in the users-list table. The column name should be "Address"',
-        },
-        {
-          key: 'KAN-8',
-          summary: 'Outdated npm dependencies detected',
-          status: 'To Do',
-          score: 100,
-          reason: 'Limited support for React hooks, which restricts the ability to manage routing state',
-        },
-      ],
-      currentTicket: 'KAN-4',
+      tickets: [],
+      currentTicket: '',
     });
   }
 }

@@ -54,7 +54,10 @@ export default function LoginPage() {
           >
             {loading ? (
               <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-dark"></div>
+                <div className="relative">
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-800"></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-transparent border-t-dark absolute top-0 left-0" style={{background: 'conic-gradient(from 0deg, #1a1a1a, #86efac, #1a1a1a)', borderRadius: '50%', WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 2px), #fff 0)', mask: 'radial-gradient(farthest-side, transparent calc(100% - 2px), #fff 0)'}}></div>
+                </div>
                 <span>Connecting to Atlassian...</span>
               </>
             ) : (
