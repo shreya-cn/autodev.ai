@@ -10,12 +10,16 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 import html
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configuration
 CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")
 CONFLUENCE_USER = os.getenv("CONFLUENCE_USER")
 CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
-SPACE_KEY = os.getenv("SPACE_KEY", "XFLOW")
+SPACE_KEY = os.getenv("SPACE_KEY")
 
 # Microservices to scan for documentation
 MICROSERVICES = [

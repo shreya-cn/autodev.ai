@@ -1,0 +1,15 @@
+{
+  "identityprovider/documentation/detaileddesign.adoc": "42fa2c4afb9d5deaab42cf44354bb12e",
+  "identityprovider/documentation/openApiSpecification.adoc": "5481e236ba952000e0fe16540ed6fba2",
+  "identityprovider/documentation/architecturedesign.adoc": "13313029b0eb9256cdde51e433a01f8f",
+  "enrollment/documentation/detaileddesign.adoc": "cc82325ae10fa3b33346c07d0c7f9d4f",
+  "enrollment/documentation/openApiSpecification.adoc": "120e176345934d9691d31b5e10cb1462",
+  "enrollment/documentation/architecturedesign.adoc": "75a1cb6bb1acd7cde6004642976029fb",
+  "usermanagement/documentation/detaileddesign.adoc": "87d7e63960cb0e5af2c44757ee630018",
+  "usermanagement/documentation/openApiSpecification.adoc": "801154925a2607ff801acfbc9410ecb3",
+  "usermanagement/documentation/architecturedesign.adoc": "ed60a9ab0ba35a60f64cfc76d24224d5",
+  "vehiclemanagement/documentation/detaileddesign.adoc": "3f0c3af5c11ddef968eec18c7f15e992",
+  "vehiclemanagement/documentation/openApiSpecification.adoc": "faa7cbb24268f06eb5491063a2942a91",
+  "vehiclemanagement/documentation/architecturedesign.adoc": "4992ddd09399b418e3e061c4fb51f005",
+  "release-notes/release-notes.adoc": "66708d9e9ce3441a5f0533d68eb914e6"
+}
