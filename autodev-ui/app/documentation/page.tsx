@@ -44,7 +44,7 @@ export default function Documentation() {
     try {
       const response = await fetch('/api/documentation');
       const data = await response.json();
-      
+      console.log(response);
       if (data.documentation) {
         setDocumentation(data.documentation);
       }
