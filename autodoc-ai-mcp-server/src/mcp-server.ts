@@ -142,7 +142,6 @@ class JavaDocumentationMCPServer {
   }
 
   private logError(message: string, data?: any) {
-    // Handle Error objects specially to extract useful information
     if (data instanceof Error) {
       this.log('error', message, {
         errorMessage: data.message,
@@ -150,8 +149,7 @@ class JavaDocumentationMCPServer {
         name: data.name
       });
     } else if (data !== undefined) {
-      // For non-Error objects, try to ensure they're loggable
-      this.log('error', message, 
+      this.log('error', message,
         typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : String(data)
       );
     } else {
@@ -166,7 +164,6 @@ class JavaDocumentationMCPServer {
   }
 
   private setupToolHandlers() {
-    // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       const tools: Tool[] = [
         {
