@@ -19,7 +19,7 @@ load_dotenv()
 CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")
 CONFLUENCE_USER = os.getenv("CONFLUENCE_USER")
 CONFLUENCE_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
-SPACE_KEY = os.getenv("SPACE_KEY", "XFLOW")
+SPACE_KEY = os.getenv("SPACE_KEY")
 
 # Microservices to scan for documentation
 MICROSERVICES = [
@@ -313,38 +313,6 @@ class ConfluenceUploader:
         url = f"{self.base_url}/content"
         response = self._request("POST", url, data=json.dumps(data))
         return response.json().get('id') if response else None
-
-    def attach_file(self, page_id, file_path, filename):
-        """Attach a file to a Confluence page"""
-        try:
-            # Check if attachment with same filename exists
-            check_url = f"{self.base_url}/content/{page_id}/child/attachment"
-            resp = requests.get(check_url, auth=self.auth, params={"filename": filename})
-            existing_id = None
-            if resp.status_code < 300:
-                data = resp.json()
-                results = data.get("results", [])
-                if results:
-                    existing_id = results[0].get("id")
-
-            with open(file_path, 'rb') as f:
-                files = {'file': (filename, f, 'image/png')}
-                headers = {'X-Atlassian-Token': 'no-check'}
-
-                if existing_id:
-                    # Update existing attachment data
-                    url = f"{self.base_url}/content/{page_id}/child/attachment/{existing_id}/data"
-                    response = requests.post(url, auth=self.auth, files=files, headers=headers)
-                else:
-                    # Create new attachment
-                    url = f"{self.base_url}/content/{page_id}/child/attachment"
-                    response = requests.post(url, auth=self.auth, files=files, headers=headers)
-
-                response.raise_for_status()
-                return True
-        except Exception as e:
-            print(f"Failed to attach file: {e}")
-            return False
 
     def convert_markdown_to_html(self, content):
         """Enhanced Markdown to HTML conversion"""
@@ -848,3 +816,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#     if __name__ == "__main__":
+#         main()

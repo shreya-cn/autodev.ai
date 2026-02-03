@@ -145,5 +145,4 @@ The application is deployed within a VPC with restricted access. Only HTTP and H
 
 1. User sends login credentials.
 2. System validates credentials and issues a JWT.
-3. JWT is used for subsequent requests to authenticate and authorize the user.
 

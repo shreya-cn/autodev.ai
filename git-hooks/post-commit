@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""
+Git Hook for Jira Ticket Management - Post Commit
+Updates ticket status and suggests related tickets using AI.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Get the directory containing this script
+# The hook is in .git/hooks but is a symlink to git-hooks/post-commit
+# So we need to get the real path
+SCRIPT_DIR = Path(__file__).resolve().parent.absolute()
+
+# Add parent directory to Python path (the repo root)
+REPO_ROOT = SCRIPT_DIR.parent
+if REPO_ROOT.name == "git-hooks":
+    REPO_ROOT = REPO_ROOT.parent
+
+sys.path.insert(0, str(REPO_ROOT))
+
+try:
+    from jira_ticket_manager import JiraTicketManager
+    from ai_ticket_suggester import AITicketSuggester
+    
+    def update_ticket_and_suggest():
+        """Update Jira ticket and suggest related tickets."""
+        manager = JiraTicketManager()
+        
+        if not manager.validate_credentials():
+            print("Warning: Could not connect to Jira")
+            return
+        
+        # Update ticket status
+        manager.auto_update_ticket()
+        
+        # Get current ticket
+        branch = manager.get_current_branch()
+        if branch:
+            ticket_key = manager.extract_ticket_key(branch)
+            if ticket_key:
+                # Run AI suggestions silently
+                suggester = AITicketSuggester()
+                suggestions = suggester.suggest_related_tickets(ticket_key)
+    
+    if __name__ == "__main__":
+        update_ticket_and_suggest()
+        
+except Exception as e:
+    import traceback
+    print(f"Warning: Ticket automation failed: {e}")
+    traceback.print_exc()
+    pass
