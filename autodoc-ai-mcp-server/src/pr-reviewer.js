@@ -160,7 +160,7 @@ async function isSimilarComment(a, b) {
 async function postPRCommentIfNew(prNumber, body) {
   const existingComments = await getExistingComments(prNumber);
   // Only compare to previous bot comments
-  const botComments = existingComments.filter(c => c && c.startsWith('### 🤖 **AutoDoc Automated Review**'));
+  const botComments = existingComments.filter(c => c && c.startsWith('### 🤖 **AutoRev Automated Review**'));
   for (const c of botComments) {
     if (await isSimilarComment(c, body)) {
       console.log('No new review comment needed (duplicate or near-duplicate detected).');
@@ -219,7 +219,7 @@ async function main() {
     securityNotes = mcpReview.split('Security Notes:')[1].split(/\n|$/)[0].trim();
   }
 
-  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n${mcpReview}\n\n${accessibilityNotes ? '#### ♿ **Accessibility Notes**\n' + accessibilityNotes + '\n' : ''}${securityNotes ? '#### 🔒 **Security Notes**\n' + securityNotes + '\n' : ''}---`;
+  const commentBody = `### 🤖 **AutoRev Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n${mcpReview}\n\n${accessibilityNotes ? '#### ♿ **Accessibility Notes**\n' + accessibilityNotes + '\n' : ''}${securityNotes ? '#### 🔒 **Security Notes**\n' + securityNotes + '\n' : ''}---`;
 
   await postPRCommentIfNew(prNumber, commentBody);
 }

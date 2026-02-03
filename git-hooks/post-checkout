@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""
+Git Hook for Jira Ticket Management
+Install this as a post-checkout and post-commit hook to automatically update Jira tickets.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Get the directory containing this script
+# The hook is in .git/hooks but is a symlink to git-hooks/post-checkout
+# So we need to get the real path
+SCRIPT_DIR = Path(__file__).resolve().parent.absolute()
+
+# Add parent directory to Python path (the repo root)
+REPO_ROOT = SCRIPT_DIR.parent
+if REPO_ROOT.name == "git-hooks":
+    REPO_ROOT = REPO_ROOT.parent
+
+sys.path.insert(0, str(REPO_ROOT))
+
+try:
+    from jira_ticket_manager import JiraTicketManager
+    
+    def update_ticket():
+        """Update Jira ticket based on current git state."""
+        manager = JiraTicketManager()
+        
+        if not manager.validate_credentials():
+            # Don't fail the git operation if Jira is unavailable
+            print("Warning: Could not connect to Jira")
+            return
+        
+        # Try to update the ticket
+        manager.auto_update_ticket()
+    
+    if __name__ == "__main__":
+        update_ticket()
+        
+except Exception as e:
+    import traceback
+    # Don't fail git operations if there's an error
+    print(f"Warning: Jira ticket update failed: {e}")
+    traceback.print_exc()
+    pass
