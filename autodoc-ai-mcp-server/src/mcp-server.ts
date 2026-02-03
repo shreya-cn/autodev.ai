@@ -13,7 +13,6 @@ import { spawn } from 'child_process';
 import OpenAI from 'openai';
 import crypto from 'crypto';
 
-// Interface for class summary structure
 interface ClassSummary {
   className: string;
   annotations: string[];
@@ -39,7 +38,6 @@ interface ServerConfig {
   jiraApiToken: string;
 }
 
-// Cache metadata interface
 interface CacheMetadata {
   sourceHash: string;
   lastUpdated: string;
