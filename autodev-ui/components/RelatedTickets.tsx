@@ -21,11 +21,14 @@ interface SuggestionGroup {
   suggestions: RelatedTicket[];
 }
 
+interface RelatedTicketsProps {}
+
 export default function RelatedTickets() {
   const [suggestionGroups, setSuggestionGroups] = useState<SuggestionGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentTicket, setCurrentTicket] = useState<string>('');
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   useEffect(() => {
     fetchRelatedTickets();
@@ -38,7 +41,16 @@ export default function RelatedTickets() {
       if (isRefresh) setRefreshing(true);
       
       const response = await fetch('/api/jira/user-suggestions');
+      
+      if (!response.ok) {
+        console.error('API request failed:', response.status, response.statusText);
+        throw new Error(`API request failed: ${response.status}`);
+      }
+      
       const data = await response.json();
+      
+      console.log('API Response:', data);
+      console.log('Response status:', response.status);
       
       // Check if unauthorized or session expired
       if (response.status === 401 || data.logout) {
@@ -46,7 +58,20 @@ export default function RelatedTickets() {
         return;
       }
       
+      // Check for API errors
+      if (data.error) {
+        console.error('API returned error:', data.error);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+      
       if (data.suggestions) {
+        console.log('Number of suggestion groups:', data.suggestions.length);
+        if (data.debug) {
+          console.log('Debug info:', data.debug);
+          setDebugInfo(data.debug);
+        }
         // Keep grouped structure for display
         const groups = data.suggestions.map((suggestion: any) => ({
           ticketKey: suggestion.ticketKey,
@@ -64,8 +89,12 @@ export default function RelatedTickets() {
             relatedToTitle: suggestion.title
           }))
         }));
+        console.log('Processed groups:', groups);
         setSuggestionGroups(groups);
         setCurrentTicket(data.suggestions[0]?.ticketKey || '');
+      } else {
+        console.log('No suggestions in response');
+        setSuggestionGroups([]);
       }
       setLoading(false);
       setRefreshing(false);
@@ -150,8 +179,27 @@ export default function RelatedTickets() {
       </div>
 
       {suggestionGroups.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-gray-300">No related tickets found</p>
+        <div className="text-center py-12">
+          <svg className="w-16 h-16 text-gray-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <p className="text-gray-300 text-lg mb-2">No related tickets found</p>
+          {debugInfo && (
+            <div className="text-sm text-gray-400 mt-4 space-y-1">
+              <p>User tickets: {debugInfo.userTicketsCount}</p>
+              <p>Unassigned tickets: {debugInfo.unassignedTicketsCount}</p>
+              <p>Analyzed: {debugInfo.totalSuggestions} tickets</p>
+              {debugInfo.userTicketsCount === 0 && (
+                <p className="text-yellow-500 mt-2">You don't have any assigned tickets in the SCRUM project</p>
+              )}
+              {debugInfo.unassignedTicketsCount === 0 && (
+                <p className="text-yellow-500 mt-2">There are no unassigned tickets to suggest</p>
+              )}
+              {debugInfo.userTicketsCount > 0 && debugInfo.unassignedTicketsCount > 0 && debugInfo.validSuggestions === 0 && (
+                <p className="text-blue-400 mt-2">No relevant matches found. Try the Refresh button to re-analyze.</p>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-8">

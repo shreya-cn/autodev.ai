@@ -66,6 +66,7 @@ export async function GET() {
 
     const userTicketsData = await userTicketsRes.json();
     const userTickets = userTicketsData.issues || [];
+    console.log('User tickets found:', userTickets.length);
 
     // Fetch unassigned tickets from current sprint and backlog
     const unassignedTicketsRes = await fetch(
@@ -86,6 +87,7 @@ export async function GET() {
     );
 
     const unassignedTicketsData = unassignedTicketsRes.ok ? (await unassignedTicketsRes.json()).issues || [] : [];
+    console.log('Unassigned tickets found:', unassignedTicketsData.length);
 
     // Helper function to extract description text from Jira's ADF format or plain text
     const extractDescription = (descriptionField: any): string => {
@@ -174,7 +176,7 @@ TASK: Analyze the following unassigned tickets and identify which ones are HIGHL
 4. Dependencies or prerequisite work
 5. Common technical challenges
 
-Only return tickets with 60% or higher relevance.
+Only return tickets with 30% or higher relevance.
 
 UNASSIGNED TICKETS TO ANALYZE:
 ${ticketsForAnalysis.map((t, i) => `
@@ -265,9 +267,18 @@ Only include tickets with relevance_score >= 30. Return empty array if no ticket
     console.log('Total user tickets:', userTickets.length);
     console.log('Total unassigned tickets:', unassignedTicketsData.length);
     console.log('Suggestions with results:', validSuggestions.length);
-    console.log('All suggestions:', suggestions);
+    console.log('All suggestions:', JSON.stringify(suggestions, null, 2));
 
-    return NextResponse.json({ suggestions: validSuggestions });
+    // Always return suggestions array, even if empty
+    return NextResponse.json({ 
+      suggestions: validSuggestions,
+      debug: {
+        userTicketsCount: userTickets.length,
+        unassignedTicketsCount: unassignedTicketsData.length,
+        totalSuggestions: suggestions.length,
+        validSuggestions: validSuggestions.length
+      }
+    });
 
   } catch (error: any) {
     console.error('Error in user-suggestions:', error);
