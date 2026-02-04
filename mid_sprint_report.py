@@ -165,7 +165,9 @@ def get_sprint_issues(board_id: Optional[str], sprint_id: str) -> List[Dict[str,
             while True:
                 url = f"{ATLASSIAN_BASE}/rest/agile/1.0/board/{board_id}/sprint/{sprint_id}/issue"
                 page = _get(url, {"startAt": start_at, "maxResults": max_results, "fields": fields})
-                issues.extend(page.get("issues", []))
+                if page is None:
+                    break
+                issues.extend([i for i in page.get("issues", []) if i is not None])
                 if start_at + max_results >= page.get("total", 0):
                     break
                 start_at += max_results
@@ -177,7 +179,8 @@ def get_sprint_issues(board_id: Optional[str], sprint_id: str) -> List[Dict[str,
     # Fallback via JQL
     jql = f"sprint = {sprint_id}"
     data = _search_jql(jql, fields, max_results=200)
-    return data.get("issues", [])
+    issues = data.get("issues", [])
+    return [i for i in issues if i is not None]
 
 
 def _status_category(issue: Dict[str, Any]) -> str:
@@ -206,10 +209,16 @@ def compute_metrics(issues: List[Dict[str, Any]], sprint_end: Optional[datetime]
     days_left = (sprint_end - now).days if sprint_end else 999
 
     for issue in issues:
+        if issue is None or not isinstance(issue, dict):
+            continue
+        if "fields" not in issue or issue.get("fields") is None:
+            continue
+        
         cat = _status_category(issue)
         pts = _story_points(issue)
         total_points += pts
-        priority = issue.get("fields", {}).get("priority", {}).get("name", "Medium")
+        priority = (issue.get("fields") or {}).get("priority") or {}
+        priority = priority.get("name", "Medium") if isinstance(priority, dict) else "Medium"
         
         if cat == "done":
             done.append(issue)
@@ -227,9 +236,10 @@ def compute_metrics(issues: List[Dict[str, Any]], sprint_end: Optional[datetime]
             if priority in ["Highest", "High"]:
                 high_priority_todo.append(issue)
 
-        status_name = issue.get("fields", {}).get("status", {}).get("name", "")
-        labels = issue.get("fields", {}).get("labels", []) or []
-        flagged = issue.get("fields", {}).get("flagged", False)
+        status_name = (issue.get("fields") or {}).get("status") or {}
+        status_name = status_name.get("name", "") if isinstance(status_name, dict) else ""
+        labels = (issue.get("fields") or {}).get("labels", []) or []
+        flagged = (issue.get("fields") or {}).get("flagged", False)
         if flagged or "blocked" in status_name.lower() or any(l.lower() == "blocked" for l in labels):
             blocked.append(issue)
 
@@ -560,7 +570,8 @@ Generate the report now:"""
         raise RuntimeError(f"Failed to generate AI report: {exc}")
 
 
-def publish_to_confluence(title: str, html: str, sprint_data: Dict[str, Any] = None) -> None:
+def publish_to_confluence(title: str, html: str, sprint_data: Dict[str, Any] = None) -> str:
+    """Publish report to Confluence and return the page URL"""
     uploader = ConfluenceUploader()
     parent_title = "Mid-Sprint Reviews"
     parent = uploader.find_existing_page(parent_title)
@@ -593,6 +604,12 @@ def publish_to_confluence(title: str, html: str, sprint_data: Dict[str, Any] = N
             print(f"⚠️ Chart file not found: {chart_path}")
     elif sprint_data and '_chart_path' not in sprint_data:
         print(f"ℹ️ No chart data to attach")
+    
+    # Build Confluence page URL
+    # For personal spaces, SPACE_KEY starts with ~ and we need to keep it
+    page_url = f"{ATLASSIAN_BASE}/wiki/spaces/{SPACE_KEY}/pages/{page_id}"
+    print(f"📖 Confluence page URL: {page_url}")
+    return page_url
 
 
 def get_sprint_midpoint_date(sprint: Dict[str, Any]) -> Optional[datetime]:

@@ -14,3 +14,5 @@ pillow==12.1.0
 
 # Scheduler
 schedule==1.2.0
+# Web API
+flask==3.0.0

@@ -7,6 +7,7 @@ import subprocess
 import base64
 import zlib
 import hashlib
+import time
 from datetime import datetime
 from pathlib import Path
 import html
@@ -326,6 +327,9 @@ class ConfluenceUploader:
                 results = data.get("results", [])
                 if results:
                     existing_id = results[0].get("id")
+                    # Confluence sometimes returns ids prefixed with 'att'
+                    if existing_id and existing_id.startswith("att"):
+                        existing_id = existing_id.lstrip("att")
 
             with open(file_path, 'rb') as f:
                 files = {'file': (filename, f, 'image/png')}
@@ -334,7 +338,21 @@ class ConfluenceUploader:
                 if existing_id:
                     # Update existing attachment data
                     url = f"{self.base_url}/content/{page_id}/child/attachment/{existing_id}/data"
-                    response = requests.post(url, auth=self.auth, files=files, headers=headers)
+                    try:
+                        response = requests.post(url, auth=self.auth, files=files, headers=headers)
+                        response.raise_for_status()
+                        return True
+                    except Exception as e:
+                        # Fallback: retry as a new attachment with a unique name
+                        print(f"Update attachment failed ({e}); retrying with new file")
+                        f.seek(0)
+                        base, ext = os.path.splitext(filename)
+                        unique_name = f"{base}_{int(time.time())}{ext}"
+                        files = {'file': (unique_name, f, 'image/png')}
+                        url = f"{self.base_url}/content/{page_id}/child/attachment"
+                        response = requests.post(url, auth=self.auth, files=files, headers=headers)
+                        response.raise_for_status()
+                        return True
                 else:
                     # Create new attachment
                     url = f"{self.base_url}/content/{page_id}/child/attachment"

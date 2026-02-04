@@ -212,15 +212,17 @@ def main():
             ai_note = maybe_ai_notes(sprint, metrics)
             html = format_html(sprint, metrics, ai_note)
             title = f"{sprint.get('name')} - Mid-Sprint Review ({today})"
-            publish_to_confluence(title, html, sprint)
+            page_url = publish_to_confluence(title, html, sprint)
             print(f"[{datetime.now()}] ✅ Published mid-sprint review: {title}")
+            print(f"[{datetime.now()}] 📖 View at: {page_url}")
         
         if is_end:
             print(f"[{datetime.now()}] 🏁 Today is sprint end! Generating sprint end report for: {sprint.get('name')}")
             html = generate_sprint_end_report(sprint, issues, metrics)
             title = f"{sprint.get('name')} - Sprint End Report ({today})"
-            publish_to_confluence(title, html, sprint)
+            page_url = publish_to_confluence(title, html, sprint)
             print(f"[{datetime.now()}] ✅ Published sprint end report: {title}")
+            print(f"[{datetime.now()}] 📖 View at: {page_url}")
         
     except Exception as e:
         print(f"[{datetime.now()}] ❌ Error: {e}")
