@@ -81,7 +81,7 @@ export async function GET() {
           comment: comment.body || '',
           author: comment.user?.login || 'Unknown',
           createdAt: comment.created_at,
-          url: pr.html_url,
+          url: comment.html_url,
         }));
 
       if (prComments.length > 0) {

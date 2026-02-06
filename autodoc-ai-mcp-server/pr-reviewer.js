@@ -34,7 +34,7 @@ function runLint(files) {
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
   try {
     const result = require('child_process').execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
-    return result;
+    return result || 'Lint check passed. No issues found.';
   } catch (e) {
     return e.stdout || e.message;
   }

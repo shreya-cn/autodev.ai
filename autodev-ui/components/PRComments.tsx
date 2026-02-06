@@ -57,6 +57,14 @@ export default function PRComments() {
     setExpandedTickets(newExpanded);
   };
 
+  const truncateComment = (comment: string, lines: number = 2) => {
+    const split = comment.split('\n');
+    if (split.length <= lines) {
+      return comment;
+    }
+    return split.slice(0, lines).join('\n') + '...';
+  };
+
   const totalComments = Object.values(commentsByTicket).reduce((sum, comments) => sum + comments.length, 0);
   const ticketKeys = Object.keys(commentsByTicket).sort();
 
@@ -98,6 +106,8 @@ export default function PRComments() {
             const ticketComments = commentsByTicket[ticketKey];
             const isExpanded = expandedTickets.has(ticketKey);
             const firstComment = ticketComments[0];
+            const prUrl = `https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO_OWNER}/${process.env.NEXT_PUBLIC_GITHUB_REPO_NAME}/pull/${firstComment.prNumber}`;
+
 
             return (
               <div key={ticketKey} className="bg-white rounded-xl shadow-md overflow-hidden">
@@ -112,7 +122,7 @@ export default function PRComments() {
                     </span>
                     <div className="text-left">
                       <a
-                        href={firstComment.url}
+                        href={prUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-base md:text-lg font-semibold text-dark hover:text-primary transition"
@@ -152,10 +162,13 @@ export default function PRComments() {
                               {new Date(comment.createdAt).toLocaleDateString()} {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
+                          <a href={comment.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                            View on GitHub
+                          </a>
                         </div>
                         <div className="prose prose-sm md:prose-base max-w-none">
                           <pre className="whitespace-pre-wrap text-xs md:text-sm text-dark leading-relaxed font-sans">
-                            {comment.comment}
+                            {truncateComment(comment.comment)}
                           </pre>
                         </div>
                       </div>

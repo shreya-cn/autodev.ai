@@ -53,12 +53,13 @@ class LLMConfluenceJiraAutomator:
         client = OpenAI(api_key=OPENAI_API_KEY)
         prompt = f"""
         Extract requirements from this HTML. Treat every bullet point in 'Detailed Description' and 'Acceptance Criteria' as a unique requirement.
-        
+        For each requirement, provide a title, a detailed description, and estimate the story points (e.g., 1, 2, 3, 5, 8).
+
         Return JSON:
         {{
           "summary": "...",
           "requirements": [
-            {{"title": "Short name", "description": "Full details"}}
+            {{"title": "Short name", "description": "Full details", "story_points": 5}}
           ],
           "diagram_code": "..."
         }}
@@ -71,9 +72,10 @@ class LLMConfluenceJiraAutomator:
         )
         return json.loads(resp.choices[0].message.content)
 
-    def create_jira_ticket(self, title: str, description: str, page_id: str) -> Optional[str]:
+    def create_jira_ticket(self, title: str, description: str, page_id: str, story_points: Optional[int] = None) -> Optional[str]:
         print(f"[DEBUG] JIRA_PROJECT_KEY: '{JIRA_PROJECT_KEY}'")  # Debug print
         url = f"{self.jira_base}/rest/api/3/issue"
+        
         # API v3 requires Atlassian Document Format (ADF) for the description
         payload = {
             "fields": {
@@ -87,9 +89,14 @@ class LLMConfluenceJiraAutomator:
                         "content": [{"type": "text", "text": description}]
                     }]
                 },
-                "issuetype": {"name": "Story"}
+                "issuetype": {"name": "Story"},
+                "labels": []
             }
         }
+
+        if story_points is not None:
+            payload["fields"]["labels"].append(f"SP-{story_points}")
+
         resp = requests.post(url, headers=HEADERS, data=json.dumps(payload))
         if resp.status_code == 201:
             return resp.json().get("key")
@@ -104,10 +111,20 @@ class LLMConfluenceJiraAutomator:
         
         created_keys = []
         for req in llm_result.get("requirements", []):
-            t = req.get("title") if isinstance(req, dict) else str(req)[:50]
-            d = req.get("description") if isinstance(req, dict) else str(req)
-            key = self.create_jira_ticket(t, d, page_id)
-            if key: created_keys.append(key)
+            if isinstance(req, dict):
+                title = "AI - " + req.get("title", "Untitled")
+                description = req.get("description", "")
+                story_points = req.get("story_points")
+                key = self.create_jira_ticket(title, description, page_id, story_points)
+                if key:
+                    created_keys.append(key)
+            else:
+                # Fallback for simple string requirements
+                title = "AI - " + str(req)[:50]
+                description = str(req)
+                key = self.create_jira_ticket(title, description, page_id)
+                if key:
+                    created_keys.append(key)
 
         # Build update with Summary
         new_content = original_html + f"<hr/><h2>AI Jira Sync</h2><p>{llm_result.get('summary')}</p>"
