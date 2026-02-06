@@ -31,7 +31,7 @@ HEADERS = {
 
 def build_description(outdated_packages, ai_analysis):
     """
-    Supports both formats:
+    Supports formats:
     1) Old format (list): ai_analysis = [{package, issues, ...}]
     2) New format (dict):
        {
