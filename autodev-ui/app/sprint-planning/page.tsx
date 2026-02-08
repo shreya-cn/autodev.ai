@@ -449,7 +449,7 @@ export default function SprintPlanning() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-semibold text-dark">{sprint.completedStoryPoints}</p>
-                    <p className="text-xs text-gray">{sprint.sprintName.substring(0, 10)}</p>
+                    <p className="text-xs text-gray">{sprint.sprintName.replace(/\s*\(Sprint #\d+\)/, '')}</p>
                   </div>
                 </div>
               ))
