@@ -19,9 +19,26 @@ export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     
+    // Log the OAuth access token for debugging scopes
+    console.log('OAuth access token:', session?.accessToken);
+    // Attempt to decode JWT payload for scopes (if possible)
+    if (session?.accessToken) {
+      try {
+        const base64Payload = session.accessToken.split('.')[1];
+        const decodedPayload = Buffer.from(base64Payload, 'base64').toString('utf8');
+        console.log('Decoded access token payload:', decodedPayload);
+      } catch (e) {
+        console.warn('Could not decode access token as JWT:', e);
+      }
+    }
+
     if (!session?.accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Use environment variable for project key, fallback to 'SCRUM'
+    const projectKey = process.env.JIRA_PROJECT_KEY || 'SCRUM';
+    console.log('Using project key:', projectKey);
 
     // Get accessible Jira resources
     let cloudId: string | null = null;
@@ -47,137 +64,63 @@ export async function GET(request: Request) {
       console.log('Error fetching Jira resources:', error, 'using demo data');
     }
 
-    // Use demo data if we can't connect to Jira
-    if (!cloudId) {
-      console.log('Using demo/fallback data for sprint planning');
-      return NextResponse.json({
-        velocity: {
-          average: 32,
-          completionRate: 91,
-          pastSprints: [
-            { sprintId: 'demo-5', sprintName: 'Sprint 21', completedStoryPoints: 32, plannedStoryPoints: 35, completionRate: 91 },
-            { sprintId: 'demo-4', sprintName: 'Sprint 20', completedStoryPoints: 28, plannedStoryPoints: 30, completionRate: 93 },
-            { sprintId: 'demo-3', sprintName: 'Sprint 19', completedStoryPoints: 35, plannedStoryPoints: 38, completionRate: 92 },
-            { sprintId: 'demo-2', sprintName: 'Sprint 18', completedStoryPoints: 30, plannedStoryPoints: 33, completionRate: 91 },
-            { sprintId: 'demo-1', sprintName: 'Sprint 17', completedStoryPoints: 27, plannedStoryPoints: 30, completionRate: 90 },
-          ],
-        },
-        currentSprint: { id: 'demo-current', name: 'Sprint 22', state: 'active' },
-        backlog: {
-          totalTickets: 10,
-          totalPoints: 103,
-          tickets: [
-            { key: 'SCRUM-101', summary: 'Implement user authentication system', storyPoints: 13, issueType: 'Story' },
-            { key: 'SCRUM-102', summary: 'Create dashboard analytics view', storyPoints: 8, issueType: 'Story' },
-            { key: 'SCRUM-103', summary: 'Database optimization and indexing', storyPoints: 5, issueType: 'Task' },
-            { key: 'SCRUM-104', summary: 'API rate limiting implementation', storyPoints: 5, issueType: 'Story' },
-            { key: 'SCRUM-105', summary: 'Security audit and penetration testing', storyPoints: 21, issueType: 'Epic' },
-            { key: 'SCRUM-106', summary: 'Mobile app responsive design', storyPoints: 8, issueType: 'Story' },
-            { key: 'SCRUM-107', summary: 'Payment gateway integration', storyPoints: 13, issueType: 'Story' },
-            { key: 'SCRUM-108', summary: 'User notification system', storyPoints: 5, issueType: 'Task' },
-            { key: 'SCRUM-109', summary: 'Performance monitoring and logging', storyPoints: 8, issueType: 'Story' },
-            { key: 'SCRUM-110', summary: 'Documentation updates', storyPoints: 3, issueType: 'Task' },
-          ],
-        },
-        team: {
-          size: 4,
-          members: [
-            { displayName: 'Alice (Tech Lead)', accountId: 'demo-1', key: 'alice' },
-            { displayName: 'Bob (Backend)', accountId: 'demo-2', key: 'bob' },
-            { displayName: 'Carol (Frontend)', accountId: 'demo-3', key: 'carol' },
-            { displayName: 'David (QA)', accountId: 'demo-4', key: 'david' },
-          ],
-          healthScore: 82,
-          profiles: [
-            { name: 'Alice (Tech Lead)', workloadRiskLevel: 'medium', estimatedWorkload: 28, skillType: 'Leadership', burnoutRisk: false, specialization: 'Architecture & Planning' },
-            { name: 'Bob (Backend)', workloadRiskLevel: 'low', estimatedWorkload: 24, skillType: 'Backend', burnoutRisk: false, specialization: 'Database & APIs' },
-            { name: 'Carol (Frontend)', workloadRiskLevel: 'medium', estimatedWorkload: 27, skillType: 'Frontend', burnoutRisk: false, specialization: 'UI/UX & Components' },
-            { name: 'David (QA)', workloadRiskLevel: 'low', estimatedWorkload: 24, skillType: 'QA', burnoutRisk: false, specialization: 'Testing & Quality' },
-          ],
-        },
-        recommendations: {
-          recommended_capacity: 30,
-          confidence: 85,
-          suggested_tickets: ['SCRUM-101', 'SCRUM-102', 'SCRUM-104', 'SCRUM-106', 'SCRUM-109'],
-          risk_level: 'low',
-          risk_reason: 'Team is well-balanced with consistent velocity. Current backlog is manageable.',
-          velocity_insight: 'Team averages 32 points per sprint with 91% completion rate.',
-          recommendations: [
-            'Plan next sprint with 30-32 points based on historical velocity',
-            'Prioritize SCRUM-101 (authentication) as it blocks other features',
-            'Consider pairing senior dev with junior on SCRUM-105 (epic)',
-            'Monitor Alice\'s workload to prevent burnout',
-          ],
-          team_health_score: 82,
-          team_risk_analysis: {
-            overloaded_members: 1,
-            at_risk_members: 0,
-            skill_gaps: false,
-            member_profiles: [
-              { name: 'Alice (Tech Lead)', workloadRiskLevel: 'medium', estimatedWorkload: 28, skillType: 'Leadership', burnoutRisk: false, specialization: 'Architecture & Planning' },
-              { name: 'Bob (Backend)', workloadRiskLevel: 'low', estimatedWorkload: 24, skillType: 'Backend', burnoutRisk: false, specialization: 'Database & APIs' },
-              { name: 'Carol (Frontend)', workloadRiskLevel: 'medium', estimatedWorkload: 27, skillType: 'Frontend', burnoutRisk: false, specialization: 'UI/UX & Components' },
-              { name: 'David (QA)', workloadRiskLevel: 'low', estimatedWorkload: 24, skillType: 'QA', burnoutRisk: false, specialization: 'Testing & Quality' },
-            ],
-            mitigation_strategies: [
-              {
-                member: 'Alice (Tech Lead)',
-                risk: 'Alice is at medium workload risk due to leadership responsibilities',
-                action: 'Delegate more architectural decisions to Bob for knowledge transfer and workload distribution',
-              },
-            ],
-          },
-          sprint_success_probability: 89,
-          skill_gap_solutions: ['Good skill distribution across team', 'Continue pair programming for knowledge sharing'],
-          workload_optimization: 'Balance is good. Alice\'s workload slightly high - consider reducing scope or delegating tasks.',
-        },
-      });
-    }
-
-    // 1. Fetch past sprints using JQL (more reliable than board API)
+    // 1. Fetch past sprints using Agile API (guaranteed real sprints)
     let pastSprints: SprintData[] = [];
-    
-    // First get all sprints for the SCRUM project
-    const allSprintsRes = await fetch(
-      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search`,
+    let backlogTickets: any[] = [];
+
+    // Get board ID from env or default to 1
+    const boardId = process.env.JIRA_BOARD_ID || '1';
+    console.log('Using Jira board ID:', boardId);
+    let closedSprints: any[] = [];
+    let noSprints = false;
+
+    // Fetch closed sprints from Agile API
+    console.log(`Fetching closed sprints from Agile API for board ${boardId}...`);
+    const sprintsRes = await fetch(
+      `https://api.atlassian.com/ex/jira/${cloudId}/rest/agile/1.0/board/${boardId}/sprint?state=closed&maxResults=5&orderBy=-endDate`,
       {
-        method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.accessToken}`,
-          'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          jql: `project = SCRUM ORDER BY updated DESC`,
-          maxResults: 5,
-          fields: ['sprint', 'customfield_10020', 'status'],
-        }),
       }
     );
 
-    if (allSprintsRes.ok) {
-      const allIssues = await allSprintsRes.json();
-      console.log('Total issues found:', allIssues.issues?.length || 0);
-      
-      // Get unique sprints from issues
-      const sprintMap = new Map();
-      allIssues.issues?.forEach((issue: any) => {
-        const sprintArray = issue.fields.sprint;
-        if (Array.isArray(sprintArray) && sprintArray.length > 0) {
-          const sprint = sprintArray[0];
-          if (sprint && sprint.state === 'closed') {
-            sprintMap.set(sprint.id, sprint);
-          }
-        }
-      });
+    if (sprintsRes.ok) {
+      const sprintsData = await sprintsRes.json();
+      console.log('Raw Agile API sprints response:', JSON.stringify(sprintsData, null, 2));
+      closedSprints = (sprintsData.values || []).slice(0, 5);
+      console.log('Closed sprints from Agile API:', closedSprints.map((s: any) => s.name));
+    } else {
+      console.log('Failed to fetch sprints from Agile API:', sprintsRes.status);
+      const errorText = await sprintsRes.text();
+      console.log('Sprint Agile API error:', errorText);
+    }
 
-      // Get last 5 closed sprints and calculate velocity
-      const closedSprints = Array.from(sprintMap.values()).slice(0, 5);
-      console.log('Closed sprints found:', closedSprints.length);
+    // Filter out deleted sprints before processing
+    closedSprints = closedSprints.filter((s: any) => s.state !== 'deleted');
+    console.log('Filtered closed sprints (non-deleted):', closedSprints.map((s: any) => s.name));
+    // Only last 5 valid sprints
+    closedSprints = closedSprints.slice(0, 5);
 
+    if (closedSprints.length === 0) {
+      console.log('No real sprints found from Agile API. Returning demo sprints and noSprints flag.');
+      noSprints = true;
+      // Demo sprints fallback
+      closedSprints = [
+        { id: 1, name: 'Demo Sprint 1', state: 'closed' },
+        { id: 2, name: 'Demo Sprint 2', state: 'closed' },
+        { id: 3, name: 'Demo Sprint 3', state: 'closed' },
+        { id: 4, name: 'Demo Sprint 4', state: 'closed' },
+        { id: 5, name: 'Demo Sprint 5', state: 'closed' },
+      ];
+    } else {
+      // For each sprint, fetch issues and calculate velocity
       for (const sprint of closedSprints) {
-        // Get completed story points
+        console.log(`Fetching issues for sprint: ${sprint.name} (ID: ${sprint.id})`);
+        // Fetch completed issues (status = Done)
         const completedRes = await fetch(
-          `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search`,
+          `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
           {
             method: 'POST',
             headers: {
@@ -191,10 +134,9 @@ export async function GET(request: Request) {
             }),
           }
         );
-
-        // Get all story points in sprint (planned)
+        // Fetch all issues in sprint (planned)
         const plannedRes = await fetch(
-          `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search`,
+          `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
           {
             method: 'POST',
             headers: {
@@ -208,60 +150,86 @@ export async function GET(request: Request) {
             }),
           }
         );
-
         let completedPoints = 0;
         let plannedPoints = 0;
-
         if (completedRes.ok) {
           const completedData = await completedRes.json();
+          console.log(`Completed issues for sprint ${sprint.name}:`, completedData.issues?.length || 0);
+          // Log all numeric fields in the first completed issue
+          if (completedData.issues && completedData.issues.length > 0) {
+            const firstCompleted = completedData.issues[0].fields;
+            Object.entries(firstCompleted).forEach(([key, value]) => {
+              if (typeof value === 'number') {
+                console.log(`[Sprint ${sprint.name}] Numeric field candidate: ${key} =`, value);
+              } else if (typeof value === 'string' && !isNaN(Number(value))) {
+                console.log(`[Sprint ${sprint.name}] String-number field candidate: ${key} =`, value);
+              }
+            });
+          }
           completedPoints = completedData.issues?.reduce((sum: number, issue: any) => {
-            const points = issue.fields?.customfield_10020 || issue.fields?.customfield_10016;
+            const points = issue.fields?.customfield_10016;
             const numPoints = typeof points === 'number' ? points : 0;
             return sum + numPoints;
           }, 0) || 0;
+        } else {
+          console.log(`Failed to fetch completed issues for sprint ${sprint.name}:`, completedRes.status);
         }
-
         if (plannedRes.ok) {
           const plannedData = await plannedRes.json();
+          console.log(`Planned issues for sprint ${sprint.name}:`, plannedData.issues?.length || 0);
+          // Log all numeric fields in the first planned issue
+          if (plannedData.issues && plannedData.issues.length > 0) {
+            const firstPlanned = plannedData.issues[0].fields;
+            Object.entries(firstPlanned).forEach(([key, value]) => {
+              if (typeof value === 'number') {
+                console.log(`[Sprint ${sprint.name}] Numeric field candidate: ${key} =`, value);
+              } else if (typeof value === 'string' && !isNaN(Number(value))) {
+                console.log(`[Sprint ${sprint.name}] String-number field candidate: ${key} =`, value);
+              }
+            });
+          }
           plannedPoints = plannedData.issues?.reduce((sum: number, issue: any) => {
-            const points = issue.fields?.customfield_10020 || issue.fields?.customfield_10016;
+            const points = issue.fields?.customfield_10016;
             const numPoints = typeof points === 'number' ? points : 0;
             return sum + numPoints;
           }, 0) || 0;
+        } else {
+          console.log(`Failed to fetch planned issues for sprint ${sprint.name}:`, plannedRes.status);
         }
-
         const completionRate = plannedPoints > 0 ? (completedPoints / plannedPoints) * 100 : 0;
-
         pastSprints.push({
           sprintId: sprint.id,
-          sprintName: sprint.name,
-          completedStoryPoints: completedPoints || 20 + Math.floor(Math.random() * 15), // Demo fallback
-          plannedStoryPoints: plannedPoints || 25 + Math.floor(Math.random() * 10),
-          completionRate: Math.round(completionRate) || 85 + Math.floor(Math.random() * 10), // Demo fallback
+          sprintName: `${sprint.name} (Sprint #${sprint.id})`,
+          completedStoryPoints: completedPoints,
+          plannedStoryPoints: plannedPoints,
+          completionRate: Math.round(completionRate),
         });
-
-        console.log(`Sprint ${sprint.name}: ${completedPoints} completed / ${plannedPoints} planned`);
+        console.log(`Sprint ${sprint.name} (Sprint #${sprint.id}): ${completedPoints} completed / ${plannedPoints} planned (Completion rate: ${Math.round(completionRate)}%)`);
       }
     }
 
     console.log('Past sprints calculated:', pastSprints.length)
 
-    // Ensure we have meaningful velocity data (add demo data if needed)
+    // Only use real Jira data for sprints. If none, return empty array and flag.
     if (pastSprints.length === 0) {
-      console.log('No sprint history found, adding demo data');
+      console.log('No real sprints found. Returning demo sprints and noSprints flag.');
+      noSprints = true;
+      // Demo past sprints fallback
       pastSprints = [
-        { sprintId: 'demo-5', sprintName: 'Sprint 21', completedStoryPoints: 32, plannedStoryPoints: 35, completionRate: 91 },
-        { sprintId: 'demo-4', sprintName: 'Sprint 20', completedStoryPoints: 28, plannedStoryPoints: 30, completionRate: 93 },
-        { sprintId: 'demo-3', sprintName: 'Sprint 19', completedStoryPoints: 35, plannedStoryPoints: 38, completionRate: 92 },
-        { sprintId: 'demo-2', sprintName: 'Sprint 18', completedStoryPoints: 30, plannedStoryPoints: 33, completionRate: 91 },
-        { sprintId: 'demo-1', sprintName: 'Sprint 17', completedStoryPoints: 27, plannedStoryPoints: 30, completionRate: 90 },
+        { sprintId: '1', sprintName: 'Demo Sprint 1', completedStoryPoints: 20, plannedStoryPoints: 25, completionRate: 80 },
+        { sprintId: '2', sprintName: 'Demo Sprint 2', completedStoryPoints: 18, plannedStoryPoints: 22, completionRate: 82 },
+        { sprintId: '3', sprintName: 'Demo Sprint 3', completedStoryPoints: 24, plannedStoryPoints: 28, completionRate: 86 },
+        { sprintId: '4', sprintName: 'Demo Sprint 4', completedStoryPoints: 15, plannedStoryPoints: 20, completionRate: 75 },
+        { sprintId: '5', sprintName: 'Demo Sprint 5', completedStoryPoints: 21, plannedStoryPoints: 23, completionRate: 91 },
       ];
+    } else if (pastSprints.length > 5) {
+      pastSprints = pastSprints.slice(0, 5);
     }
 
     // 2. Fetch current sprint
     let currentSprint = null;
     const currentSprintRes = await fetch(
-      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search`,
+      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
       {
         method: 'POST',
         headers: {
@@ -269,7 +237,7 @@ export async function GET(request: Request) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          jql: `project = SCRUM AND sprint in openSprints()`,
+          jql: `project = ${projectKey} AND sprint in openSprints()`,
           maxResults: 1,
           fields: ['sprint'],
         }),
@@ -278,21 +246,33 @@ export async function GET(request: Request) {
 
     if (currentSprintRes.ok) {
       const currentSprintData = await currentSprintRes.json();
-      if (currentSprintData.issues && currentSprintData.issues.length > 0) {
+      if (
+        currentSprintData.issues &&
+        currentSprintData.issues.length > 0 &&
+        currentSprintData.issues[0].fields &&
+        typeof currentSprintData.issues[0].fields.sprint !== 'undefined'
+      ) {
         const sprintArray = currentSprintData.issues[0].fields.sprint;
         if (Array.isArray(sprintArray) && sprintArray.length > 0) {
           currentSprint = sprintArray[0];
           console.log('Current sprint:', currentSprint?.name);
+        } else if (sprintArray && typeof sprintArray === 'object') {
+          currentSprint = sprintArray;
+          console.log('Current sprint (object):', currentSprint?.name);
+        } else {
+          console.warn('Current sprint field exists but is not array/object:', sprintArray);
         }
+      } else {
+        console.warn('Current sprint JQL result missing fields.sprint:', JSON.stringify(currentSprintData.issues?.[0]?.fields, null, 2));
       }
+    } else {
+      console.log('Failed to fetch current sprint:', currentSprintRes.status);
+      const errorText = await currentSprintRes.text();
+      console.log('Current sprint fetch error:', errorText);
     }
 
-    // 3. Fetch backlog - use same approach as working backlog endpoint
-    // Try multiple JQL queries to find tickets
-    let backlogTickets = [];
-    
-    // First try: sprint is EMPTY using /search/jql endpoint
-    const jql = `project = SCRUM AND sprint is EMPTY ORDER BY created DESC`;
+    // 3. Fetch backlog
+    const jql = `project = ${projectKey} AND sprint is EMPTY ORDER BY created DESC`;
     console.log('Fetching backlog with JQL:', jql);
     
     const backlogRes1 = await fetch(
@@ -312,9 +292,9 @@ export async function GET(request: Request) {
       }
     );
 
-    // Discover the correct story points field by examining the first issue
-    let storyPointsField = 'customfield_10020'; // Default
-    
+    // Use the correct Jira field for Story point estimate (customfield_10016)
+    let storyPointsField = 'customfield_10016'; // Confirmed from Jira field list
+
     if (backlogRes1.ok) {
       const data = await backlogRes1.json();
       console.log('Backlog query result:', data.issues?.length || 0);
@@ -324,28 +304,19 @@ export async function GET(request: Request) {
         const firstIssue = data.issues[0];
         console.log('First issue:', firstIssue.key);
         console.log('First issue fields:', JSON.stringify(firstIssue.fields, null, 2));
-        
-        // Try to find story points field by checking common field IDs
-        const potentialFields = ['customfield_10020', 'customfield_10016', 'customfield_10000'];
-        for (const field of potentialFields) {
-          if (firstIssue.fields[field] !== undefined && firstIssue.fields[field] !== null) {
-            console.log(`Found non-null value in ${field}:`, firstIssue.fields[field]);
-            // Check if it's a number or object
-            if (typeof firstIssue.fields[field] === 'number' || 
-                (typeof firstIssue.fields[field] === 'object' && firstIssue.fields[field].value !== undefined)) {
-              storyPointsField = field;
-              console.log('Using story points field:', storyPointsField);
-              break;
-            }
-          }
+        // No need to scan for other fields, always use customfield_10016
+        if (firstIssue.fields[storyPointsField] !== undefined && firstIssue.fields[storyPointsField] !== null) {
+          console.log(`Found story points in ${storyPointsField}:`, firstIssue.fields[storyPointsField]);
+        } else {
+          console.warn(`First issue missing story points in ${storyPointsField}`);
         }
       }
       
       backlogTickets = (data.issues || []).map((issue: any, index: number) => {
-        // Handle story points - it might be a number or an object
         let storyPoints = 0;
         const fieldValue = issue.fields[storyPointsField];
-        
+        console.log(`Backlog ticket ${issue.key}: storyPointsField=${storyPointsField}, value=`, fieldValue);
+
         if (fieldValue) {
           if (typeof fieldValue === 'number') {
             storyPoints = fieldValue;
@@ -353,28 +324,19 @@ export async function GET(request: Request) {
             storyPoints = parseInt(fieldValue.value) || 0;
           }
         }
-        
-        // If no story points found, assign default values based on issue type for demo purposes
+
         if (storyPoints === 0) {
           const issueType = issue.fields.issuetype?.name?.toLowerCase() || '';
-          if (issueType.includes('epic')) {
-            storyPoints = 21;
-          } else if (issueType.includes('story')) {
-            storyPoints = 5 + ((index * 3) % 8); // 5, 8, 5, 8, etc for demo
-          } else if (issueType.includes('task')) {
-            storyPoints = 3 + (index % 2); // 3 or 4
-          } else {
-            storyPoints = 2; // Default for bugs/other
-          }
+          console.warn(`Backlog ticket ${issue.key} missing story points, issueType=${issueType}, treating as 0.`);
         }
-        
+
         return {
           key: issue.key,
           summary: issue.fields.summary,
-          storyPoints: storyPoints,
+          storyPoints: storyPoints, // 0 if missing
           issueType: issue.fields.issuetype?.name,
         };
-      });
+      }).filter(Boolean);
     } else {
       console.log('Backlog query failed:', backlogRes1.status);
       const errorText = await backlogRes1.text();
@@ -400,11 +362,9 @@ export async function GET(request: Request) {
       ];
     }
 
-    // 4. Fetch team members assigned to the SCRUM project
+    // 4. Fetch team members assigned to the project
     let teamSize = 0;
     let teamMembers: any[] = [];
-    const projectKey = 'SCRUM';
-    
     const usersRes = await fetch(
       `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/user/assignable/search?project=${projectKey}`,
       {
@@ -419,9 +379,16 @@ export async function GET(request: Request) {
       const users = await usersRes.json();
       teamMembers = Array.isArray(users) ? users : [];
       teamSize = teamMembers.length;
-      console.log('Team members count:', teamSize, 'Users:', teamMembers.map((u: any) => u.displayName));
+      const teamNames = teamMembers.map((u: any) => u.displayName);
+      console.log('Team members count:', teamSize, 'Users:', teamNames);
+      // Print each team member name for debugging
+      teamNames.forEach((name: string, idx: number) => {
+        console.log(`Team member [${idx + 1}]:`, name);
+      });
     } else {
       console.log('Failed to fetch team members:', usersRes.status);
+      const errorText = await usersRes.text();
+      console.log('Team members fetch error:', errorText);
     }
 
     // Ensure team size is reasonable
@@ -447,6 +414,8 @@ export async function GET(request: Request) {
       : 0;
 
     const totalBacklogPoints = backlogTickets.reduce((sum: number, t: any) => sum + (t.storyPoints || 0), 0);
+    console.log('Backlog tickets:', backlogTickets.map(t => ({ key: t.key, storyPoints: t.storyPoints })));
+    console.log('Calculated totalBacklogPoints:', totalBacklogPoints);
 
     // 5.5 AI-POWERED TEAM RISK ANALYSIS (Premium Feature - Predictive Sprint Success Engine)
     // Analyze team dynamics, workload distribution, skill gaps, and fatigue factors
@@ -690,6 +659,7 @@ Respond ONLY with valid JSON:
         average: avgVelocity,
         completionRate: avgCompletionRate,
         pastSprints,
+        noSprints,
       },
       currentSprint,
       backlog: {
@@ -713,3 +683,4 @@ Respond ONLY with valid JSON:
     );
   }
 }
+
