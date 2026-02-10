@@ -13,6 +13,7 @@ if (!GITHUB_TOKEN) {
 }
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
+const MCP_DOC_PATH = 'mcp-doc-output.txt';
 
 // --- Helper Functions ---
 
@@ -137,6 +138,41 @@ async function postPRCommentIfNew(prNumber, body) {
   console.log('Posted automated review comment to PR #' + prNumber);
 }
 
+async function ensureMCPDoc(prNumber) {
+  let mcpOutput = '';
+  try {
+    mcpOutput = fs.readFileSync(MCP_DOC_PATH, 'utf-8');
+  } catch (e) {
+    mcpOutput = '';
+  }
+  if (!mcpOutput || mcpOutput.trim().length === 0) {
+    // Generate structured summary of changed files
+    const files = await octokit.pulls.listFiles({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      pull_number: prNumber,
+    });
+    let summary = `## MCP Documentation - PR #${prNumber}\n`;
+    summary += `\n### Changed Files\n`;
+    for (const f of files.data) {
+      summary += `- **${f.filename}** (_${f.status}_)`;
+      if (f.patch) {
+        summary += `\n  <details><summary>Diff Preview</summary>\n\n`;
+        summary += '```diff\n';
+        summary += f.patch.split('\n').slice(0, 10).join('\n');
+        summary += '\n```\n';
+        summary += `</details>\n`;
+      } else {
+        summary += '\n';
+      }
+    }
+    summary += '\n---\n';
+    fs.writeFileSync(MCP_DOC_PATH, summary);
+    return summary;
+  }
+  return mcpOutput;
+}
+
 // --- Main Logic ---
 
 async function main() {
@@ -147,12 +183,7 @@ async function main() {
   }
 
   // Load MCP Output
-  let mcpOutput = '';
-  try {
-    mcpOutput = fs.readFileSync('mcp-doc-output.txt', 'utf-8');
-  } catch (e) {
-    mcpOutput = 'No MCP documentation available.';
-  }
+  let mcpOutput = await ensureMCPDoc(prNumber);
 
   const files = await getChangedFiles(prNumber);
   const lintResult = runLint(files);
