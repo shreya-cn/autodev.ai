@@ -62,8 +62,8 @@ export default function PRComments() {
 
   if (loading) {
     return (
-      <div className="bg-gray-light rounded-2xl p-6">
-        <h2 className="text-2xl font-bold text-dark mb-4">Open PR Comments</h2>
+      <div className="bg-dark rounded-2xl p-6">
+        <h2 className="text-2xl font-bold text-white mb-4">Open PR Comments</h2>
         <div className="flex items-center justify-center h-32">
           <div className="relative">
             <div className="animate-spin rounded-full h-8 w-8 border-3 border-gray-800"></div>
@@ -75,9 +75,9 @@ export default function PRComments() {
   }
 
   return (
-    <div className="bg-gray-light rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 xl:p-12 shadow-lg">
+    <div className="bg-dark rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 xl:p-12 shadow-lg">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4 mb-6 md:mb-8">
-        <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-dark">Open PR Comments</h2>
+        <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-white">Open PR Comments</h2>
         <div className="flex gap-2 items-center">
           <span className="bg-primary text-dark text-sm md:text-base px-5 md:px-6 py-2 md:py-2.5 rounded-full font-bold shadow-md">
             {ticketKeys.length} {ticketKeys.length === 1 ? 'Ticket' : 'Tickets'}

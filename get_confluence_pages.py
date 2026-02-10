@@ -4,9 +4,18 @@ import sys
 import json
 import requests
 from dotenv import load_dotenv
+from pathlib import Path
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from parent directory if not found in current
+current_dir = Path(__file__).parent
+env_file = current_dir / '.env'
+if not env_file.exists():
+    # Try autodev-ui directory
+    env_file = current_dir / 'autodev-ui' / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
+else:
+    load_dotenv()  # Try default locations
 
 CONFLUENCE_URL = os.getenv("CONFLUENCE_URL")
 CONFLUENCE_USER = os.getenv("CONFLUENCE_USER")

@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# Git Pre-Commit Hook for AutoDoc.AI
+# Automatically regenerates documentation when Java files are committed
+
+set -e
+
+echo "🔍 AutoDoc.AI Pre-Commit Hook"
+echo "─────────────────────────────────"
+
+# Get list of staged Java files
+STAGED_JAVA_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.java$' || true)
+
+if [ -z "$STAGED_JAVA_FILES" ]; then
+  echo "✅ No Java files changed, skipping documentation regeneration"
+  exit 0
+fi
+
+echo "📝 Detected Java file changes:"
+echo "$STAGED_JAVA_FILES" | sed 's/^/   - /'
+echo ""
+
+# Determine which microservices were affected
+AFFECTED_SERVICES=""
+
+for file in $STAGED_JAVA_FILES; do
+  if [[ $file == identityprovider/* ]]; then
+    if [[ ! $AFFECTED_SERVICES =~ "identityprovider" ]]; then
+      AFFECTED_SERVICES="$AFFECTED_SERVICES identityprovider"
+    fi
+  elif [[ $file == enrollment/* ]]; then
+    if [[ ! $AFFECTED_SERVICES =~ "enrollment" ]]; then
+      AFFECTED_SERVICES="$AFFECTED_SERVICES enrollment"
+    fi
+  elif [[ $file == usermanagement/* ]]; then
+    if [[ ! $AFFECTED_SERVICES =~ "usermanagement" ]]; then
+      AFFECTED_SERVICES="$AFFECTED_SERVICES usermanagement"
+    fi
+  elif [[ $file == vehiclemanagement/* ]]; then
+    if [[ ! $AFFECTED_SERVICES =~ "vehiclemanagement" ]]; then
+      AFFECTED_SERVICES="$AFFECTED_SERVICES vehiclemanagement"
+    fi
+  fi
+done
+
+if [ -z "$AFFECTED_SERVICES" ]; then
+  echo "ℹ️  Java changes outside microservices, skipping documentation"
+  exit 0
+fi
+
+echo "🎯 Affected microservices:$AFFECTED_SERVICES"
+echo ""
+
+# Regenerate documentation for each affected service
+cd autodoc-ai-mcp-server
+
+for service in $AFFECTED_SERVICES; do
+  echo "🚀 Regenerating documentation for $service..."
+  
+  if node mcp-launcher.js "$service"; then
+    echo "✅ Documentation updated for $service"
+    
+    # Stage the updated documentation files
+    git add "../$service/documentation/architecturedesign.adoc" 2>/dev/null || true
+    git add "../$service/documentation/detaileddesign.adoc" 2>/dev/null || true
+    git add "../$service/documentation/openApiSpecification.adoc" 2>/dev/null || true
+    git add "../$service/documentation/cache/classes-summary.json" 2>/dev/null || true
+    git add "../$service/documentation/cache/.cache-metadata.json" 2>/dev/null || true
+    
+    echo "📋 Documentation files staged for commit"
+  else
+    echo "❌ Failed to regenerate documentation for $service"
+    echo ""
+    echo "💡 Options:"
+    echo "   1. Fix the error and try committing again"
+    echo "   2. Skip documentation update: git commit --no-verify"
+    exit 1
+  fi
+  
+  echo ""
+done
+
+cd ..
+
+echo "✅ Documentation regeneration complete!"
+echo "📚 Updated documentation will be included in this commit"
+echo ""
+
+exit 0

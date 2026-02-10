@@ -12,6 +12,11 @@ import path from 'path';
 import { spawn } from 'child_process';
 import OpenAI from 'openai';
 import crypto from 'crypto';
+import { KnowledgeBaseQueryHandler } from './knowledge-base-handler.js';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Interface for class summary structure
 interface ClassSummary {
@@ -76,6 +81,7 @@ class JavaDocumentationMCPServer {
   private server: Server;
   private openai: OpenAI;
   private config: ServerConfig;
+  private knowledgeBaseHandler: KnowledgeBaseQueryHandler | null = null;
 
   constructor() {
     // Load configuration from environment variables
@@ -292,6 +298,38 @@ class JavaDocumentationMCPServer {
             required: [],
           },
         },
+        {
+          name: 'query_knowledge_base',
+          description: 'Ask questions about the codebase using metadata (privacy-safe, no raw code sent to LLM)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              question: {
+                type: 'string',
+                description: 'Question to ask about the codebase (e.g., "How does authentication work?")',
+              },
+              projectPath: {
+                type: 'string',
+                description: 'Path to the project (optional, uses ../autodev-ui by default)',
+              },
+            },
+            required: ['question'],
+          },
+        },
+        {
+          name: 'rebuild_knowledge_index',
+          description: 'Rebuild the knowledge base index by scanning the codebase (extracts metadata only, no raw code)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: {
+                type: 'string',
+                description: 'Path to the project to index (optional, uses ../autodev-ui by default)',
+              },
+            },
+            required: [],
+          },
+        },
       ];
 
       this.logDebug('Registered tools:', tools.map(t => t.name));
@@ -329,8 +367,14 @@ class JavaDocumentationMCPServer {
           case 'get_cache_status':
             result = await this.getCacheStatus(request.params.arguments);
             break;
+          case 'query_knowledge_base':
+            result = await this.queryKnowledgeBase(request.params.arguments);
+            break;
+          case 'rebuild_knowledge_index':
+            result = await this.rebuildKnowledgeIndex(request.params.arguments);
+            break;
           default:
-            const availableTools = ['analyze_java_project', 'generate_documentation', 'generate_release_notes', 'full_pipeline', 'get_config', 'get_cache_status'];
+            const availableTools = ['analyze_java_project', 'generate_documentation', 'generate_release_notes', 'full_pipeline', 'get_config', 'get_cache_status', 'query_knowledge_base', 'rebuild_knowledge_index'];
             this.logError(`Unknown tool requested: ${request.params.name}. Available tools: ${availableTools.join(', ')}`);
             result = {
               content: [
@@ -1636,10 +1680,155 @@ ${yamlContent}
 
 
 
-  async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    this.logInfo('🚀 Java Documentation MCP Server with Jira Integration running on stdio');
+  // ============================================================================
+  // Knowledge Base Tools (Privacy-Safe)
+  // ============================================================================
+
+  /**
+   * Query the knowledge base with a question
+   */
+  private async queryKnowledgeBase(args: any): Promise<CallToolResult> {
+    try {
+      const question = args.question;
+      if (!question) {
+        throw new Error('Question parameter is required');
+      }
+
+      this.logInfo(`🔍 Querying knowledge base: "${question}"`);
+
+      // Initialize handler if not already done
+      if (!this.knowledgeBaseHandler) {
+        const dataDir = path.resolve(__dirname, '../data');
+        this.knowledgeBaseHandler = new KnowledgeBaseQueryHandler(
+          this.config.openaiApiKey,
+          dataDir
+        );
+      }
+
+      // Execute query
+      const result = await this.knowledgeBaseHandler.query(question);
+
+      // Format response
+      let responseText = `## Answer\n\n${result.answer}\n\n`;
+
+      if (result.sources.length > 0) {
+        responseText += `## Sources (${result.confidence} confidence)\n\n`;
+        result.sources.forEach((source, index) => {
+          responseText += `${index + 1}. **${source.file}** (${source.type})\n`;
+          if (source.snippet) {
+            responseText += `   ${source.snippet}\n`;
+          }
+          responseText += `   Relevance: ${(source.relevance * 100).toFixed(0)}%\n\n`;
+        });
+      }
+
+      if (result.suggestedFollowUps && result.suggestedFollowUps.length > 0) {
+        responseText += `## Suggested Follow-up Questions\n\n`;
+        result.suggestedFollowUps.forEach((q, index) => {
+          responseText += `${index + 1}. ${q}\n`;
+        });
+      }
+
+      responseText += `\n---\n_Privacy Note: This answer was generated from code structure metadata only. No actual implementation code was sent to the LLM._`;
+
+      this.logInfo(`✅ Knowledge base query completed (${result.confidence} confidence)`);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: responseText,
+          },
+        ],
+      };
+    } catch (error) {
+      this.logError('Knowledge base query failed', error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ Error querying knowledge base: ${error instanceof Error ? error.message : String(error)}\n\nMake sure the knowledge base index exists. Run 'rebuild_knowledge_index' tool first.`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  /**
+   * Rebuild the knowledge base index
+   */
+  private async rebuildKnowledgeIndex(args: any): Promise<CallToolResult> {
+    try {
+      const projectPath = args.projectPath || path.resolve(__dirname, '../../autodev-ui');
+      
+      this.logInfo(`🔄 Rebuilding knowledge base index for: ${projectPath}`);
+
+      // Run the build script
+      const scriptPath = path.resolve(__dirname, '../scripts/build-knowledge-base.js');
+      
+      const result = await this.executeScript(
+        'node',
+        [scriptPath, `--project=${projectPath}`]
+      );
+
+      this.logInfo('✅ Knowledge base index rebuilt successfully');
+
+      // Reset handler to force reload on next query
+      this.knowledgeBaseHandler = null;
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✅ Knowledge base index rebuilt successfully!\n\n${result}\n\n_The index contains code structure metadata only - no implementation details._`,
+          },
+        ],
+      };
+    } catch (error) {
+      this.logError('Failed to rebuild knowledge index', error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ Error rebuilding knowledge index: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  /**
+   * Execute a script and return output
+   */
+  private executeScript(command: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(command, args, { shell: true });
+      let output = '';
+      let errorOutput = '';
+
+      proc.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      proc.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve(output || errorOutput);
+        } else {
+          reject(new Error(`Script exited with code ${code}: ${errorOutput}`));
+        }
+      });
+
+      proc.on('error', (error) => {
+        reject(error);
+      });
+    });
+  }
 
     // Auto-run pipeline if configured
     if (this.config.autoRunPipeline && this.config.microservicePath) {
