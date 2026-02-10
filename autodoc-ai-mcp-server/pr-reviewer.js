@@ -2,10 +2,6 @@ import fs from 'fs';
 import { execSync, spawn } from 'child_process';
 import { Octokit } from '@octokit/rest';
 
-/* ============================
-   Environment
-============================ */
-
 const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -16,18 +12,17 @@ if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
   process.exit(1);
 }
 
-// Determine MCP server entrypoint
-const MCP_SERVER_PATH = fs.existsSync('./dist/index.js')
-  ? './dist/index.js'
-  : './dist/mcp-server.js';
-
+const MCP_SERVER_PATH = fs.existsSync('./dist/index.js') ? './dist/index.js' : './dist/mcp-server.js';
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-/* ============================
-   GitHub helpers
-============================ */
+// ---------------- GitHub helpers ----------------
 
-async function getPRDiff(prNumber) {
+async function getPRFiles(prNumber: number) {
+  const { data } = await octokit.pulls.listFiles({ owner: REPO_OWNER, repo: REPO_NAME, pull_number: prNumber });
+  return data.map(f => f.filename);
+}
+
+async function getPRDiff(prNumber: number) {
   const { data } = await octokit.pulls.get({
     owner: REPO_OWNER,
     repo: REPO_NAME,
@@ -37,169 +32,86 @@ async function getPRDiff(prNumber) {
   return data;
 }
 
-async function getPRFiles(prNumber) {
-  const { data } = await octokit.pulls.listFiles({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    pull_number: prNumber,
-  });
-  return data.map(f => f.filename);
-}
+// ---------------- MCP review ----------------
 
-/* ============================
-   MCP orchestration
-============================ */
+async function generateMCPReview(prNumber: number) {
+  if (!fs.existsSync(MCP_SERVER_PATH)) return '⚠️ MCP server not found.';
 
-async function generateMCPReview(prNumber) {
-  return new Promise(async (resolve) => {
-    console.log('🤖 Orchestrating MCP PR Review via JSON-RPC...');
+  const diff = await getPRDiff(prNumber);
+  const files = await getPRFiles(prNumber);
 
-    if (!fs.existsSync(MCP_SERVER_PATH)) {
-      resolve(`⚠️ MCP server not found at ${MCP_SERVER_PATH}`);
-      return;
-    }
-
-    const diff = await getPRDiff(prNumber);
-    const files = await getPRFiles(prNumber);
-
-    const serverProcess = spawn('node', [MCP_SERVER_PATH], {
-      env: { ...process.env, EXIT_ON_TOOL_COMPLETE: 'true' },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
+  return new Promise(resolve => {
+    const server = spawn('node', [MCP_SERVER_PATH], { env: { ...process.env, EXIT_ON_TOOL_COMPLETE: 'true' }, stdio: ['pipe', 'pipe', 'pipe'] });
     let finished = false;
-    let reviewResult = '';
 
-    function handleMCPOutput(data) {
-      const message = data.toString();
-      console.log(`[MCP]: ${message.trim()}`);
-
+    const handleOutput = (data: Buffer) => {
       try {
-        const lines = message
-          .split('\n')
-          .filter(l => l.trim().startsWith('{'));
-
+        const lines = data.toString().split('\n').filter(l => l.trim().startsWith('{'));
         for (const line of lines) {
           const json = JSON.parse(line);
           if (json.id === 'pr-review-call' && json.result) {
-            reviewResult = json.result.content?.[0]?.text || '';
             finished = true;
-            serverProcess.kill();
+            server.kill();
+            resolve(json.result.content?.[0]?.text || 'No suggestions.');
           }
         }
-      } catch {
-        // ignore partial JSON
-      }
-    }
+      } catch { }
+    };
 
-    serverProcess.stdout.on('data', handleMCPOutput);
-    serverProcess.stderr.on('data', handleMCPOutput);
+    server.stdout.on('data', handleOutput);
+    server.stderr.on('data', handleOutput);
 
-    // 🚀 Fire tool call after short boot delay
+    // Fire tool call
     setTimeout(() => {
-      const toolCall = JSON.stringify({
+      server.stdin.write(JSON.stringify({
         jsonrpc: '2.0',
         id: 'pr-review-call',
         method: 'tools/call',
-        params: {
-          name: 'review_code_changes',
-          arguments: {
-            diff,
-            files,
-          },
-        },
-      });
-
-      serverProcess.stdin.write(toolCall + '\n');
+        params: { name: 'review_code_changes', arguments: { diff, files } },
+      }) + '\n');
     }, 500);
 
-    serverProcess.on('close', () => {
-      resolve(reviewResult || '⚠️ MCP review returned no suggestions.');
-    });
-
-    setTimeout(() => {
-      if (!finished) {
-        serverProcess.kill();
-        resolve('⚠️ MCP review timed out.');
-      }
-    }, 120_000);
+    // Timeout fallback
+    setTimeout(() => { if (!finished) { server.kill(); resolve('⚠️ MCP review timed out.'); } }, 120_000);
   });
 }
 
-/* ============================
-   Local checks
-============================ */
+// ---------------- Local checks ----------------
 
 function runLint() {
-  try {
-    return execSync('npx eslint .', { encoding: 'utf-8' });
-  } catch (e) {
-    return e.stdout || e.message;
-  }
+  try { return execSync('npx eslint .', { encoding: 'utf-8' }); } catch (e) { return e.stdout || e.message; }
 }
 
 function runBuildCheck() {
-  try {
-    execSync('npm run build', { encoding: 'utf-8' });
-    return 'Build succeeded ✅';
-  } catch (e) {
-    return e.stdout || e.message;
-  }
+  try { execSync('npm run build', { encoding: 'utf-8' }); return 'Build succeeded ✅'; } catch (e) { return e.stdout || e.message; }
 }
 
 function runAudit() {
   try {
-    const result = execSync('npm audit --json', { encoding: 'utf-8' });
-    const audit = JSON.parse(result);
+    const audit = JSON.parse(execSync('npm audit --json', { encoding: 'utf-8' }));
     const total = Object.keys(audit.vulnerabilities || {}).length;
-    return total === 0
-      ? 'No known vulnerabilities 🚦'
-      : `Vulnerabilities found: ${total} ⚠️`;
-  } catch {
-    return 'Vulnerabilities detected ⚠️';
-  }
+    return total === 0 ? 'No known vulnerabilities 🚦' : `Vulnerabilities found: ${total} ⚠️`;
+  } catch { return 'Vulnerabilities detected ⚠️'; }
 }
 
-/* ============================
-   PR comment
-============================ */
+// ---------------- PR comments ----------------
 
-async function postPRCommentIfNew(prNumber, body) {
-  const { data: comments } = await octokit.issues.listComments({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    issue_number: prNumber,
-  });
+async function postPRCommentIfNew(prNumber: number, body: string) {
+  const { data: comments } = await octokit.issues.listComments({ owner: REPO_OWNER, repo: REPO_NAME, issue_number: prNumber });
+  if (comments.some(c => c.body.includes('### 🤖 **AutoDoc Automated Review**'))) return;
 
-  const botTag = '### 🤖 **AutoDoc Automated Review**';
-  if (comments.some(c => c.body.includes(botTag))) return;
-
-  await octokit.issues.createComment({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    issue_number: prNumber,
-    body,
-  });
+  await octokit.issues.createComment({ owner: REPO_OWNER, repo: REPO_NAME, issue_number: prNumber, body });
 }
 
-/* ============================
-   Main
-============================ */
+// ---------------- Main ----------------
 
 async function main() {
-  const prNumber = process.argv[2];
+  const prNumber = Number(process.argv[2]);
   if (!prNumber) process.exit(1);
 
-  const [lint, build, audit, mcp] = await Promise.all([
-    runLint(),
-    runBuildCheck(),
-    runAudit(),
-    generateMCPReview(prNumber),
-  ]);
+  const [lint, build, audit, mcp] = await Promise.all([runLint(), runBuildCheck(), runAudit(), generateMCPReview(prNumber)]);
 
-  const summary = /fail|error|⚠️|vulnerabilities/i.test(lint + audit)
-    ? 'Some issues found ⚠️'
-    : 'All checks passed ✅';
+  const summary = /fail|error|⚠️|vulnerabilities/i.test(lint + audit) ? 'Some issues found ⚠️' : 'All checks passed ✅';
 
   const body = `### 🤖 **AutoDoc Automated Review**
 
@@ -227,7 +139,4 @@ ${mcp}
   await postPRCommentIfNew(prNumber, body);
 }
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+main().catch(err => { console.error(err); process.exit(1); });
