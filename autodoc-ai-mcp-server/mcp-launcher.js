@@ -633,36 +633,6 @@ async function main() {
         console.log(JSON.stringify(configDisplay, null, 2));
         break;
 
-      case 'review': {
-        // PR review mode: analyze changed files and print suggestions
-        const changedFiles = args.slice(1);
-        if (changedFiles.length === 0) {
-          console.log('MCP: No files changed in this PR.');
-          process.exit(0);
-        }
-        (async () => {
-          const fsSync = await import('fs');
-          console.log('MCP Suggestions:');
-          for (const file of changedFiles) {
-            let suggestion = `- Review ${file} for improvements.`;
-            try {
-              const content = fsSync.readFileSync(file, 'utf-8');
-              if (/TODO|FIXME/i.test(content)) {
-                suggestion += ' Contains TODO/FIXME comments.';
-              }
-              if (/console\.log/i.test(content)) {
-                suggestion += ' Contains console.log statements.';
-              }
-            } catch (err) {
-              suggestion += ' (Could not read file contents)';
-            }
-            console.log(suggestion);
-          }
-          process.exit(0);
-        })();
-        break;
-      }
-
       default:
         console.log('📖 Usage:');
         console.log('  node launcher.js generate     - Generate documentation and exit');
