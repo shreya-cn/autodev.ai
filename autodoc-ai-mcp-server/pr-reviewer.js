@@ -176,9 +176,22 @@ async function main() {
     ? 'Some issues found ⚠️'
     : 'All checks passed ✅';
 
+    // Show full audit details if vulnerabilities detected
+  let auditSection = audit;
+  if (/Vulnerabilities detected|Vulnerabilities found|vulnerabilities/i.test(audit)) {
+    try {
+      const auditRaw = execSync('npm audit', { encoding: 'utf-8' });
+      auditSection = `Vulnerabilities detected ⚠️\n\n\`\`\`\n${auditRaw}\n\`\`\``;
+    } catch (e) {
+      auditSection = `Vulnerabilities detected ⚠️\n\n\`\`\`\n${e.stdout || e.message}\n\`\`\``;
+    }
+  }
+
   const body = `### 🤖 **AutoDoc Automated Review**
 
-**${summary}**
+\`\`\`
+${summary}
+\`\`\`
 
 ---
 #### 🧹 Lint Results
