@@ -34,7 +34,7 @@ function runLint(files) {
   const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts'));
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
   try {
-    const result = execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
+    const result = require('child_process').execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
     return result;
   } catch (e) {
     return e.stdout || e.message;
@@ -198,38 +198,33 @@ async function main() {
   const lintResult = runLint(files);
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
- 
-  // Get PR diff
-  const { data: pr } = await octokit.pulls.get({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    pull_number: prNumber,
-  });
-  const diff = pr.diff_url ? execSync(`curl -sL ${pr.diff_url}`, { encoding: 'utf-8' }) : '';
-  const llmReview = await generateLLMReview(diff);
- 
-  const commentBody = `### 🤖 **AutoDoc Automated Review**
- 
----
- 
-#### 🧹 **Lint Results**
-\`\`\`
-${lintResult}
-\`\`\`
- 
-#### 🏗️ **Build Results**
-\`\`\`
-${buildResult}
-\`\`\`
- 
-#### 🛡️ **Vulnerability Check**
-${auditResult}
- 
-#### 💡 **AI Suggestions & Refactoring**
-${llmReview}
- 
----`;
- 
+  const testCoverage = runTestCoverage();
+  const mcpReview = await generateMCPReview();
+
+  // High-level summary logic
+  let summary = 'All checks passed ✅';
+  if (
+    (lintResult && !/^No JS\/TS files to lint\./.test(lintResult) && /error|fail|✖|problems?/i.test(lintResult)) ||
+    /fail|error|✖/i.test(buildResult) ||
+    /Vulnerabilities found: [1-9]/.test(auditResult) ||
+    /No MCP documentation|error|fail|problem|issue/i.test(mcpReview) ||
+    /FAIL|error|problem|issue|not\s*covered|\b0%\b/i.test(testCoverage)
+  ) {
+    summary = 'Some issues found ⚠️';
+  }
+
+  // Try to extract accessibility/security notes from MCP output
+  let accessibilityNotes = '';
+  let securityNotes = '';
+  if (mcpReview.includes('Accessibility Notes:')) {
+    accessibilityNotes = mcpReview.split('Accessibility Notes:')[1].split(/\n|Security Notes:/)[0].trim();
+  }
+  if (mcpReview.includes('Security Notes:')) {
+    securityNotes = mcpReview.split('Security Notes:')[1].split(/\n|$/)[0].trim();
+  }
+
+  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n${mcpReview}\n\n${accessibilityNotes ? '#### ♿ **Accessibility Notes**\n' + accessibilityNotes + '\n' : ''}${securityNotes ? '#### 🔒 **Security Notes**\n' + securityNotes + '\n' : ''}---`;
+
   await postPRCommentIfNew(prNumber, commentBody);
 }
  
