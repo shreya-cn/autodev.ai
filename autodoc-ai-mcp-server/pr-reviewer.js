@@ -1,12 +1,8 @@
-// pr-reviewer.js
-// Script to auto-generate PR review comments and refactoring suggestions
-// Usage: node pr-reviewer.js <PR_NUMBER>
- 
+import fs from 'fs';
 import { execSync } from 'child_process';
 import { Octokit } from '@octokit/rest';
-import OpenAI from 'openai';
-import fs from 'fs';
- 
+
+// Environment Variables
 const REPO_OWNER = process.env.REPO_OWNER || 'your-org';
 const REPO_NAME = process.env.REPO_NAME || 'your-repo';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -19,8 +15,9 @@ if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
 }
  
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
- 
+
+// --- Helper Functions ---
+
 async function getChangedFiles(prNumber) {
   const { data } = await octokit.pulls.listFiles({
     owner: REPO_OWNER,
@@ -34,8 +31,7 @@ function runLint(files) {
   const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts'));
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
   try {
-    const result = require('child_process').execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
-    return result;
+    return execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
   } catch (e) {
     return e.stdout || e.message;
   }
@@ -49,95 +45,53 @@ function runBuildCheck() {
     return e.stdout || e.message;
   }
 }
- 
-function runAudit() {
-  try {
-    const result = execSync('npm audit --json', { encoding: 'utf-8' });
-    const audit = JSON.parse(result);
-    const total = audit.metadata.vulnerabilities.total;
-    if (total === 0) return 'No known vulnerabilities 🚦';
-    return `Vulnerabilities found: ${total} ⚠️`;
-  } catch (e) {
-    // Try to parse and summarize audit output even on error
-    if (e.stdout) {
-      return summarizeAudit(e.stdout);
-    }
-    return `Vulnerability check failed. Error: ${e.message}`;
-  }
-}
 
 function summarizeAudit(auditJson) {
   try {
     const audit = JSON.parse(auditJson);
-    // New npm audit format (npm v7+)
     if (audit.vulnerabilities) {
       const vulns = audit.vulnerabilities;
       const names = Object.keys(vulns);
       if (names.length === 0) return 'No known vulnerabilities 🚦';
-      let summary = '';
+      
       let total = 0;
-      const severityCount = { low: 0, moderate: 0, high: 0, critical: 0 };
       let details = '';
+      const severityCount = { low: 0, moderate: 0, high: 0, critical: 0 };
+
       for (const name of names) {
         const v = vulns[name];
         total++;
         if (v.severity && severityCount[v.severity] !== undefined) {
           severityCount[v.severity]++;
         }
-        // List each vulnerability for this package
         if (v.via && Array.isArray(v.via)) {
           v.via.forEach((issue) => {
-            if (typeof issue === 'object') {
-              details += `- ${name} (${v.severity}): ${issue.title || issue.source || 'No title'}\n`;
-            } else {
-              details += `- ${name} (${v.severity}): ${issue}\n`;
-            }
+            details += `- ${name} (${v.severity}): ${issue.title || issue.source || 'No title'}\n`;
           });
-        } else if (v.via) {
-          details += `- ${name} (${v.severity}): ${v.via}\n`;
         }
       }
-      summary += `Vulnerabilities found: ${total} ⚠️\n`;
-      summary += `Severity: ` + Object.entries(severityCount).map(([sev, count]) => `${sev}: ${count}`).join(', ') + '\n';
-      summary += `\nVulnerable packages/details:\n${details}`;
-      return summary;
+      return `Vulnerabilities found: ${total} ⚠️\nSeverity: ${Object.entries(severityCount).map(([s, c]) => `${s}: ${c}`).join(', ')}\n\nDetails:\n${details}`;
     }
-    // Old npm audit format
-    if (audit.metadata && audit.metadata.vulnerabilities) {
-      const meta = audit.metadata.vulnerabilities;
-      const total = meta.total || (meta.low + meta.moderate + meta.high + meta.critical);
-      if (total === 0) return 'No known vulnerabilities 🚦';
-      let details = '';
-      if (audit.advisories) {
-        for (const id in audit.advisories) {
-          const adv = audit.advisories[id];
-          details += `- ${adv.module_name} (${adv.severity}): ${adv.title}\n`;
-        }
-      }
-      return `Vulnerabilities found: ${total} ⚠️\nSeverity: low: ${meta.low}, moderate: ${meta.moderate}, high: ${meta.high}, critical: ${meta.critical}\n\nVulnerable packages/details:\n${details}`;
-    }
-    // If error field present
-    if (audit.error) {
-      return `Vulnerability check failed: ${audit.error.summary || audit.error}`;
-    }
-    return `Vulnerability check: Unrecognized audit output. Raw: ${auditJson}`;
+    return 'Vulnerability check: No standard format detected.';
   } catch (err) {
-    return `Vulnerability check failed. Could not parse audit output. Raw: ${auditJson}`;
+    return `Vulnerability check failed to parse.`;
   }
 }
- 
-async function generateLLMReview(diff) {
-  const llmPrompt = `You are an expert code reviewer. Please provide:\n- A concise summary of the changes\n- Constructive code review comments (style, bugs, best practices)\n- Refactoring suggestions\n- Accessibility and security notes if relevant\n- A friendly closing statement\n\nDiff:\n${diff}`;
-  const response = await openai.chat.completions.create({
-    model: OPENAI_MODEL,
-    messages: [
-      { role: 'user', content: llmPrompt }
-    ],
-    max_tokens: 500,
-  });
-  let content = response.choices[0].message.content.trim();
-  if (!content.endsWith('.') && !content.endsWith('!') && !content.endsWith('?')) {
-    content += '\n\nThank you for your contribution! 🚀';
+
+function runAudit() {
+  try {
+    const result = execSync('npm audit --json', { encoding: 'utf-8' });
+    return summarizeAudit(result);
+  } catch (e) {
+    return e.stdout ? summarizeAudit(e.stdout) : `Audit failed: ${e.message}`;
+  }
+}
+
+function runTestCoverage() {
+  try {
+    return execSync('npm test -- --coverage', { encoding: 'utf-8' });
+  } catch (e) {
+    return e.stdout || e.message;
   }
   return content;
 }
@@ -153,31 +107,30 @@ async function getExistingComments(prNumber) {
 }
  
 async function isSimilarComment(a, b) {
-  // Normalize: remove whitespace, collapse newlines, lowercase
   const norm = str => str.replace(/\s+/g, ' ').trim().toLowerCase();
   const na = norm(a);
   const nb = norm(b);
   if (!na || !nb) return false;
-  // Simple similarity: percent of matching chars in the shorter string
-  const minLen = Math.min(na.length, nb.length);
+  
   let match = 0;
+  const minLen = Math.min(na.length, nb.length);
   for (let i = 0; i < minLen; i++) {
     if (na[i] === nb[i]) match++;
   }
-  const similarity = match / minLen;
-  return similarity > 0.9; // 90%+ similar
+  return (match / minLen) > 0.9;
 }
  
 async function postPRCommentIfNew(prNumber, body) {
   const existingComments = await getExistingComments(prNumber);
-  // Only compare to previous bot comments
   const botComments = existingComments.filter(c => c && c.startsWith('### 🤖 **AutoDoc Automated Review**'));
+  
   for (const c of botComments) {
     if (await isSimilarComment(c, body)) {
-      console.log('No new review comment needed (duplicate or near-duplicate detected).');
+      console.log('No new review comment needed.');
       return;
     }
   }
+  
   await octokit.issues.createComment({
     owner: REPO_OWNER,
     repo: REPO_NAME,
@@ -186,44 +139,66 @@ async function postPRCommentIfNew(prNumber, body) {
   });
   console.log('Posted automated review comment to PR #' + prNumber);
 }
- 
+
+// --- Main Logic ---
+
 async function main() {
   const prNumber = process.argv[2];
   if (!prNumber) {
     console.error('Usage: node pr-reviewer.js <PR_NUMBER>');
     process.exit(1);
   }
- 
+
+  // Load MCP Output
+  let mcpOutput = '';
+  try {
+    mcpOutput = fs.readFileSync('mcp-doc-output.txt', 'utf-8');
+  } catch (e) {
+    mcpOutput = 'No MCP documentation available.';
+  }
+
   const files = await getChangedFiles(prNumber);
   const lintResult = runLint(files);
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
   const testCoverage = runTestCoverage();
-  const mcpReview = await generateMCPReview();
 
-  // High-level summary logic
+  // Summary logic
   let summary = 'All checks passed ✅';
-  if (
-    (lintResult && !/^No JS\/TS files to lint\./.test(lintResult) && /error|fail|✖|problems?/i.test(lintResult)) ||
-    /fail|error|✖/i.test(buildResult) ||
-    /Vulnerabilities found: [1-9]/.test(auditResult) ||
-    /No MCP documentation|error|fail|problem|issue/i.test(mcpReview) ||
-    /FAIL|error|problem|issue|not\s*covered|\b0%\b/i.test(testCoverage)
-  ) {
+  const issueKeywords = /fail|error|✖|problems?|Vulnerabilities found: [1-9]|not covered/i;
+  
+  if (issueKeywords.test(lintResult) || issueKeywords.test(buildResult) || issueKeywords.test(auditResult) || issueKeywords.test(testCoverage)) {
     summary = 'Some issues found ⚠️';
   }
 
-  // Try to extract accessibility/security notes from MCP output
-  let accessibilityNotes = '';
-  let securityNotes = '';
-  if (mcpReview.includes('Accessibility Notes:')) {
-    accessibilityNotes = mcpReview.split('Accessibility Notes:')[1].split(/\n|Security Notes:/)[0].trim();
-  }
-  if (mcpReview.includes('Security Notes:')) {
-    securityNotes = mcpReview.split('Security Notes:')[1].split(/\n|$/)[0].trim();
-  }
+  const commentBody = `### 🤖 **AutoDoc Automated Review**
 
-  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n${mcpReview}\n\n${accessibilityNotes ? '#### ♿ **Accessibility Notes**\n' + accessibilityNotes + '\n' : ''}${securityNotes ? '#### 🔒 **Security Notes**\n' + securityNotes + '\n' : ''}---`;
+**${summary}**
+
+---
+
+#### 🧹 **Lint Results**
+\`\`\`
+${lintResult}
+\`\`\`
+
+#### 🏗️ **Build Results**
+\`\`\`
+${buildResult}
+\`\`\`
+
+#### 🧪 **Test Coverage**
+\`\`\`
+${testCoverage}
+\`\`\`
+
+#### 🛡️ **Vulnerability Check**
+${auditResult}
+
+#### 💡 **MCP Suggestions**
+${mcpOutput}
+
+---`;
 
   await postPRCommentIfNew(prNumber, commentBody);
 }
