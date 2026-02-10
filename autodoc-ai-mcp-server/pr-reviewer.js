@@ -157,9 +157,6 @@ async function generateReview(prNumber) {
   try {
     const filesWithDiffs = await getChangedFiles(prNumber);
     const diffs = filesWithDiffs.map(f => `File: ${f.filename}\n${f.diff}`).join('\n\n');
-    // Send diffs to MCP review (simulate local call)
-    // If MCP review expects file paths, update MCP to accept diffs
-    // For now, send diffs to OpenAI for review
     const aiResponse = await openai.chat.completions.create({
       model: OPENAI_MODEL,
       messages: [
