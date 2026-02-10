@@ -78,7 +78,7 @@ interface GitCommitInfo {
 }
 
 class JavaDocumentationMCPServer {
-  private server: Server;
+  public server: Server;
   private openai: OpenAI;
   private config: ServerConfig;
   private knowledgeBaseHandler: KnowledgeBaseQueryHandler | null = null;
@@ -1829,18 +1829,6 @@ ${yamlContent}
       });
     });
   }
-
-    // Auto-run pipeline if configured
-    if (this.config.autoRunPipeline && this.config.microservicePath) {
-      try {
-        this.logInfo('🔄 Auto-running documentation pipeline...');
-        await this.fullPipeline({});
-        this.logInfo('✅ Auto-run pipeline completed successfully');
-      } catch (error) {
-        this.logError('❌ Auto-run pipeline failed', error);
-      }
-    }
-  }
 }
 
 // Main execution
@@ -1849,11 +1837,13 @@ async function main() {
   console.info(`📍 Current directory: ${process.cwd()}`);
   console.info(`🐛 Node version: ${process.version}`);
   
-  const server = new JavaDocumentationMCPServer();
+  const mcpServer = new JavaDocumentationMCPServer();
   console.info('✅ Server instance created');
-  console.info('🚀 Successfully launched MCP server');
   
-  await server.run();
+  const transport = new StdioServerTransport();
+  await mcpServer.server.connect(transport);
+  
+  console.info('🚀 Successfully launched MCP server');
 }
 
 // Handle graceful shutdown

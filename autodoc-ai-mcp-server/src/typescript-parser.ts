@@ -344,11 +344,11 @@ export class TypeScriptMetadataParser {
   }
 
   private extractComponent(node: ts.Node): ComponentInfo | null {
-    let name = '';
+    let name: string | undefined = '';
     let props = '';
     let parameters: ts.NodeArray<ts.ParameterDeclaration> | undefined;
     let isExported = false;
-    let jsDoc = '';
+    let jsDoc: string | undefined = '';
 
     if (ts.isFunctionDeclaration(node) && node.name) {
       name = node.name.text;
@@ -365,6 +365,10 @@ export class TypeScriptMetadataParser {
       jsDoc = this.extractJsDoc(node);
     }
 
+    if (!name) {
+      return null;
+    }
+
     if (parameters && parameters.length > 0) {
       props = parameters[0].type?.getText() || '';
     }
@@ -372,7 +376,7 @@ export class TypeScriptMetadataParser {
     // TODO: Extract hooks usage (useState, useEffect, etc.)
     const hooks: string[] = [];
 
-    return { name, props, isExported, hooks, jsDoc };
+    return { name, props, isExported, hooks, jsDoc: jsDoc || undefined };
   }
 
   private extractType(node: ts.InterfaceDeclaration | ts.TypeAliasDeclaration): TypeInfo {
