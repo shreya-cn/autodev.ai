@@ -142,14 +142,50 @@ async function postPRCommentIfNew(prNumber, body) {
   console.log('Posted automated review comment to PR #' + prNumber);
 }
 
+
 async function generateMCPReview(changedFiles) {
   try {
-    // Use mcp-launcher.js review mode for MCP suggestions
-    const args = changedFiles.map(f => `'${f}'`).join(' ');
-    const result = execSync(`node mcp-launcher.js review ${args}`, { encoding: 'utf-8' });
+    const args = changedFiles.map(f => `"${f}"`).join(' ');
+    const result = execSync(
+      `node ./mcp-reviewer.js review ${args}`,
+      { encoding: 'utf-8' }
+    );
     return result.trim();
   } catch (e) {
+    console.error(e);
     return 'MCP review generation failed.';
+  }
+}
+
+async function getChangedFilesWithDiffs(prNumber) {
+  const { data } = await octokit.pulls.listFiles({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    pull_number: prNumber,
+  });
+  // Each file: { filename, patch }
+  return data.map(f => ({ filename: f.filename.replace(/^autodoc-ai-mcp-server\//, ''), diff: f.patch || '' }));
+}
+
+async function generateMCPReviewWithDiffs(prNumber) {
+  try {
+    const filesWithDiffs = await getChangedFilesWithDiffs(prNumber);
+    const diffs = filesWithDiffs.map(f => `File: ${f.filename}\n${f.diff}`).join('\n\n');
+    // Send diffs to MCP review (simulate local call)
+    // If MCP review expects file paths, update MCP to accept diffs
+    // For now, send diffs to OpenAI for review
+    const aiResponse = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        { role: 'system', content: 'You are an expert code reviewer. Review the following code diffs and provide suggestions.' },
+        { role: 'user', content: diffs }
+      ],
+      max_tokens: 500
+    });
+    return aiResponse.choices[0].message.content.trim();
+  } catch (e) {
+    console.error(e);
+    return 'AI review generation failed.';
   }
 }
 
@@ -177,7 +213,8 @@ async function main() {
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
   const testCoverage = runTestCoverage();
-  const mcpReview = await generateMCPReview(files);
+  // Use diff-based AI review
+  const mcpReview = await generateMCPReviewWithDiffs(prNumber);
 
   // Summary logic
   let summary = 'All checks passed ✅';
