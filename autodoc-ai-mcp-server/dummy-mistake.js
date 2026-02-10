@@ -47,3 +47,19 @@ function divideTest(a, b) {
     }
     // Missing return statement
 }
+
+function addTest(a, b) {
+    return a + b // missing semicolon (lint error)
+}
+
+// TODO: This function needs error handling
+
+function subtractTest(a, b) {
+    return a - b;
+}
+
+// FIXME: This function is not covered by tests
+function multiplyTest(a, b) {
+    // Intentional bug: should be a * b
+    return a + b;
+}
