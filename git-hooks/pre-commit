@@ -5,6 +5,12 @@
 
 set -e
 
+# Skip hook in CI environments (GitHub Actions, etc.)
+if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
+  echo "⏭️  Skipping pre-commit hook in CI environment"
+  exit 0
+fi
+
 echo "🔍 AutoDoc.AI Pre-Commit Hook"
 echo "─────────────────────────────────"
 

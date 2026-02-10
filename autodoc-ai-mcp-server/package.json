@@ -8,12 +8,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist//mcp-server.js",
-    "clean": "rm -rf dist",
-    "watch": "node watch-and-regenerate.js all",
-    "watch:identity": "node watch-and-regenerate.js identityprovider",
-    "watch:enrollment": "node watch-and-regenerate.js enrollment",
-    "watch:user": "node watch-and-regenerate.js usermanagement",
-    "watch:vehicle": "node watch-and-regenerate.js vehiclemanagement"
+    "clean": "rm -rf dist"
   },
   "keywords": [
     "mcp",
@@ -28,7 +23,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.1",
     "@octokit/rest": "^22.0.1",
-    "chokidar": "^3.6.0",
     "openai": "^4.0.0"
   },
   "devDependencies": {
