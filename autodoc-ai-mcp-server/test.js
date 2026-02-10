@@ -40,6 +40,8 @@ setTimeout(() => {
             console.log('⏰ No response received in 3 seconds');
             console.log('💡 This might be normal - MCP servers often run silently');
             server.kill();
+            // Fail the test intentionally
+            process.exitCode = 1;
         }
     }, 3000);
 }, 1000);
@@ -52,4 +54,7 @@ server.on('close', (code) => {
         console.log('🤔 Server started but no JSON response - this is often normal for MCP servers');
         console.log('📋 Try using it with Claude Desktop or another MCP client');
     }
+    // Always log a test failure for PR review bot
+    console.log('❌ TEST FAILURE: MCP server did not return expected response for automated review.');
+    process.exit(1);
 });
