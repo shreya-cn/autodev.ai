@@ -6,49 +6,109 @@ import path from 'path';
 import { spawn } from 'child_process';
 import OpenAI from 'openai';
 import crypto from 'crypto';
+import { KnowledgeBaseQueryHandler } from './knowledge-base-handler.js';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Interface for class summary structure
+interface ClassSummary {
+  className: string;
+  annotations: string[];
+  methods: string[];
+  endpoints: string[];
+  fields: string[];
+  isEntity: boolean;
+  isRestController: boolean;
+}
+
+// Configuration interface
+interface ServerConfig {
+  openaiApiKey: string;
+  openaiModel: string;
+  microservicePath: string;
+  outputPath: string;
+  docFormat: string;
+  logLevel: string;
+  autoRunPipeline: boolean;
+  // Jira configuration
+  jiraBaseUrl: string;
+  jiraEmail: string;
+  jiraApiToken: string;
+}
+
+// Cache metadata interface
+interface CacheMetadata {
+  sourceHash: string;
+  lastUpdated: string;
+  sourceFiles: string[];
+  classCount: number;
+}
+
+// Jira issue interface
+interface JiraIssue {
+  id: string;
+  key: string;
+  fields: {
+    summary: string;
+    description?: any;
+    status: {
+      name: string;
+    };
+    issuetype: {
+      name: string;
+    };
+    created: string;
+    updated: string;
+  };
+}
+
+// Git commit info interface
+interface GitCommitInfo {
+  hash: string;
+  message: string;
+  ticketNumber?: string;
+}
+
 class JavaDocumentationMCPServer {
-    server;
-    openai;
-    config;
-    constructor() {
-        // Load configuration from environment variables
-        this.config = {
-            openaiApiKey: process.env.OPENAI_API_KEY || '',
-            openaiModel: process.env.OPENAI_MODEL || 'gpt-4-turbo',
-            microservicePath: process.env.MICROSERVICE_PATH || '',
-            outputPath: process.env.OUTPUT_PATH || './output',
-            docFormat: process.env.DOC_FORMAT || 'adoc',
-            logLevel: process.env.LOG_LEVEL || 'info',
-            autoRunPipeline: process.env.AUTO_RUN_PIPELINE === 'true',
-            // Jira configuration
-            jiraBaseUrl: process.env.JIRA_BASE_URL || '',
-            jiraEmail: process.env.JIRA_EMAIL || '',
-            jiraApiToken: process.env.JIRA_API_TOKEN || '',
-        };
-        this.server = new Server({
-            name: 'java-documentation-server',
-            version: '2.1.0',
-        }, {
-            capabilities: {
-                tools: {},
-            },
-        });
-        // Initialize OpenAI client
-        if (!this.config.openaiApiKey) {
-            this.logError('OPENAI_API_KEY environment variable is required');
-            process.exit(1);
-        }
-        this.openai = new OpenAI({
-            apiKey: this.config.openaiApiKey,
-        });
-        this.logInfo('Server initialized with configuration:', {
-            model: this.config.openaiModel,
-            microservicePath: this.config.microservicePath,
-            outputPath: this.config.outputPath,
-            format: this.config.docFormat,
-            jiraConfigured: !!(this.config.jiraBaseUrl && this.config.jiraEmail && this.config.jiraApiToken),
-        });
-        this.setupToolHandlers();
+  public server: Server;
+  private openai: OpenAI;
+  private config: ServerConfig;
+  private knowledgeBaseHandler: KnowledgeBaseQueryHandler | null = null;
+
+  constructor() {
+    // Load configuration from environment variables
+    this.config = {
+      openaiApiKey: process.env.OPENAI_API_KEY || '',
+      openaiModel: process.env.OPENAI_MODEL || 'gpt-4-turbo',
+      microservicePath: process.env.MICROSERVICE_PATH || '',
+      outputPath: process.env.OUTPUT_PATH || './output',
+      docFormat: process.env.DOC_FORMAT || 'adoc',
+      logLevel: process.env.LOG_LEVEL || 'info',
+      autoRunPipeline: process.env.AUTO_RUN_PIPELINE === 'true',
+      // Jira configuration
+      jiraBaseUrl: process.env.JIRA_BASE_URL || '',
+      jiraEmail: process.env.JIRA_EMAIL || '',
+      jiraApiToken: process.env.JIRA_API_TOKEN || '',
+    };
+
+    this.server = new Server(
+      {
+        name: 'java-documentation-server',
+        version: '2.1.0',
+      },
+      {
+        capabilities: {
+          tools: {},
+        },
+      }
+    );
+
+    // Initialize OpenAI client
+    if (!this.config.openaiApiKey) {
+      this.logError('OPENAI_API_KEY environment variable is required');
+      process.exit(1);
     }
     log(level, message, data) {
         const timestamp = new Date().toISOString();
@@ -177,141 +237,212 @@ class JavaDocumentationMCPServer {
     },
     required: ['diff']
   }
-},
-                {
-                    name: 'full_pipeline',
-                    description: 'Complete pipeline: analyze Java project, generate documentation, and create release notes (with smart caching)',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            projectPath: {
-                                type: 'string',
-                                description: 'Path to the Java project directory (optional, uses env MICROSERVICE_PATH)',
-                            },
-                            outputDir: {
-                                type: 'string',
-                                description: 'Directory to save generated documentation (optional, uses env OUTPUT_PATH)',
-                            },
-                            outputFormat: {
-                                type: 'string',
-                                enum: ['markdown', 'adoc'],
-                                description: 'Output format for documentation (optional, uses env DOC_FORMAT)',
-                            },
-                            forceRegenerate: {
-                                type: 'boolean',
-                                description: 'Force complete regeneration ignoring cache (default: false)',
-                            },
-                            generateReleaseNotes: {
-                                type: 'boolean',
-                                description: 'Whether to generate release notes (default: true)',
-                            },
-                        },
-                        required: [],
-                    },
-                },
-                {
-                    name: 'get_config',
-                    description: 'Get current server configuration',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {},
-                        required: [],
-                    },
-                },
-                {
-                    name: 'get_cache_status',
-                    description: 'Get current cache status and metadata',
-                    inputSchema: {
-                        type: 'object',
-                        properties: {
-                            projectPath: {
-                                type: 'string',
-                                description: 'Path to the Java project directory (optional, uses env MICROSERVICE_PATH)',
-                            },
-                        },
-                        required: [],
-                    },
-                },
-            ];
-            this.logDebug('Registered tools:', tools.map(t => t.name));
-            return {
-                tools,
-            };
+
+  private setupToolHandlers() {
+    // List available tools
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const tools: Tool[] = [
+        {
+          name: 'analyze_java_project',
+          description: 'Analyze Java project structure and generate/update classes-summary.json (with smart caching)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: {
+                type: 'string',
+                description: 'Path to the Java project directory (optional, uses env MICROSERVICE_PATH if not provided)',
+              },
+              forceRegenerate: {
+                type: 'boolean',
+                description: 'Force regeneration even if source files haven\'t changed (default: false)',
+              },
+            },
+            required: [],
+          },
+        },
+        {
+          name: 'generate_documentation',
+          description: 'Generate comprehensive documentation from classes-summary.json using OpenAI (only if recently updated)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              classesSummaryPath: {
+                type: 'string',
+                description: 'Path to the classes-summary.json file (optional, auto-detected)',
+              },
+              outputFormat: {
+                type: 'string',
+                enum: ['markdown', 'adoc'],
+                description: 'Output format for documentation (optional, uses env DOC_FORMAT)',
+              },
+              outputDir: {
+                type: 'string',
+                description: 'Directory to save documentation (optional, uses env OUTPUT_PATH)',
+              },
+              forceRegenerate: {
+                type: 'boolean',
+                description: 'Force documentation regeneration even if classes-summary.json is old (default: false)',
+              },
+            },
+            required: [],
+          },
+        },
+        {
+          name: 'generate_release_notes',
+          description: 'Generate release notes based on the last commit with Jira ticket number (format: TICKET-123 commit message)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: {
+                type: 'string',
+                description: 'Path to the git repository (optional, uses env MICROSERVICE_PATH if not provided)',
+              },
+              outputDir: {
+                type: 'string',
+                description: 'Directory to save release notes (optional, uses env OUTPUT_PATH/release-notes)',
+              },
+              branch: {
+                type: 'string',
+                description: 'Git branch to check for commits (default: current branch)',
+              },
+            },
+            required: [],
+          },
+        },
+        {
+          name: 'full_pipeline',
+          description: 'Complete pipeline: analyze Java project, generate documentation, and create release notes (with smart caching)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: {
+                type: 'string',
+                description: 'Path to the Java project directory (optional, uses env MICROSERVICE_PATH)',
+              },
+              outputDir: {
+                type: 'string',
+                description: 'Directory to save generated documentation (optional, uses env OUTPUT_PATH)',
+              },
+              outputFormat: {
+                type: 'string',
+                enum: ['markdown', 'adoc'],
+                description: 'Output format for documentation (optional, uses env DOC_FORMAT)',
+              },
+              forceRegenerate: {
+                type: 'boolean',
+                description: 'Force complete regeneration ignoring cache (default: false)',
+              },
+              generateReleaseNotes: {
+                type: 'boolean',
+                description: 'Whether to generate release notes (default: true)',
+              },
+            },
+            required: [],
+          },
+        },
+        {
+          name: 'get_config',
+          description: 'Get current server configuration',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
+        },
+        {
+          name: 'get_cache_status',
+          description: 'Get current cache status and metadata',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: {
+                type: 'string',
+                description: 'Path to the Java project directory (optional, uses env MICROSERVICE_PATH)',
+              },
+            },
+            required: [],
+          },
+        },
+        {
+          name: 'query_knowledge_base',
+          description: 'Ask questions about the codebase using metadata (privacy-safe, no raw code sent to LLM)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              question: {
+                type: 'string',
+                description: 'Question to ask about the codebase (e.g., "How does authentication work?")',
+              },
+              projectPath: {
+                type: 'string',
+                description: 'Path to the project (optional, uses ../autodev-ui by default)',
+              },
+            },
+            required: ['question'],
+          },
+        },
+        {
+          name: 'rebuild_knowledge_index',
+          description: 'Rebuild the knowledge base index by scanning the codebase (extracts metadata only, no raw code)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: {
+                type: 'string',
+                description: 'Path to the project to index (optional, uses ../autodev-ui by default)',
+              },
+            },
+            required: [],
+          },
+        },
+      ];
+
+      this.logDebug('Registered tools:', tools.map(t => t.name));
+      
+      return {
+        tools,
+      };
+    });
+
+    // Handle tool calls
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      try {
+        this.logDebug(`CallToolRequestSchema handler called with:`, {
+          name: request.params.name,
+          arguments: request.params.arguments
         });
-        // Handle tool calls
-        this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-            try {
-                this.logDebug(`CallToolRequestSchema handler called with:`, {
-                    name: request.params.name,
-                    arguments: request.params.arguments
-                });
-                let result;
-                switch (request.params.name) {
-                    case 'analyze_java_project':
-                        result = await this.analyzeJavaProject(request.params.arguments);
-                        break;
-                    case 'generate_documentation':
-                        result = await this.generateDocumentation(request.params.arguments);
-                        break;
-                    case 'generate_release_notes':
-                        result = await this.generateReleaseNotes(request.params.arguments);
-                        break;
-                    case 'full_pipeline':
-                        result = await this.fullPipeline(request.params.arguments);
-                        break;
-                    case 'review_code_changes':
-                        result = await this.reviewCodeChanges(request.params.arguments);
-                        break;
-                    case 'get_config':
-                        result = await this.getConfig();
-                        break;
-                    case 'get_cache_status':
-                        result = await this.getCacheStatus(request.params.arguments);
-                        break;
-                    default:
-                        const availableTools = ['analyze_java_project', 'generate_documentation', 'generate_release_notes', 'full_pipeline', 'get_config', 'get_cache_status', 'review_code_changes'];
-                        this.logError(`Unknown tool requested: ${request.params.name}. Available tools: ${availableTools.join(', ')}`);
-                        result = {
-                            content: [
-                                {
-                                    type: 'text',
-                                    text: `❌ Error: Unknown tool: ${request.params.name}\n\n💡 Available tools:\n${availableTools.map(tool => `- ${tool}`).join('\n')}\n\n💡 **Troubleshooting Tips:**\n- Check that your project path exists and contains source files\n- Verify your OpenAI API key is valid and starts with "sk-"\n- Ensure you have write permissions to the output directory\n- For Java projects, make sure you have .java files in src/ directories\n- Check that your OpenAI account has available credits\n- For Jira integration, ensure JIRA_BASE_URL, JIRA_EMAIL, and JIRA_API_TOKEN are set`,
-                                },
-                            ],
-                            isError: true,
-                        };
-                }
-                // If EXIT_ON_TOOL_COMPLETE is set, exit after handling the tool call
-                if (process.env.EXIT_ON_TOOL_COMPLETE === 'true') {
-                    this.logInfo('Shutting down MCP server...');
-                    // Give the launcher a moment to read the output before exiting
-                    setTimeout(() => process.exit(0), 250);
-                }
-                return result;
-            }
-            catch (error) {
-                this.logError(`Tool execution failed: ${request.params.name}`, error);
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: `❌ Error executing ${request.params.name}: ${error instanceof Error ? error.message : String(error)}\n\n💡 **Troubleshooting Tips:**\n- Check that your project path exists and contains source files\n- Verify your OpenAI API key is valid and starts with "sk-"\n- Ensure you have write permissions to the output directory\n- For Java projects, make sure you have .java files in src/ directories\n- Check that your OpenAI account has available credits\n- For Jira integration, ensure JIRA_BASE_URL, JIRA_EMAIL, and JIRA_API_TOKEN are set`,
-                        },
-                    ],
-                    isError: true,
-                };
-            }
-        });
-        this.logInfo('✅ MCP 1.15.1 tools registered with correct schemas');
-    }
-    async getConfig() {
-        const configDisplay = {
-            ...this.config,
-            openaiApiKey: this.config.openaiApiKey ? '***CONFIGURED***' : '***NOT SET***',
-            jiraApiToken: this.config.jiraApiToken ? '***CONFIGURED***' : '***NOT SET***',
-        };
-        return {
-            content: [
+
+        let result: CallToolResult;
+        switch (request.params.name) {
+          case 'analyze_java_project':
+            result = await this.analyzeJavaProject(request.params.arguments);
+            break;
+          case 'generate_documentation':
+            result = await this.generateDocumentation(request.params.arguments);
+            break;
+          case 'generate_release_notes':
+            result = await this.generateReleaseNotes(request.params.arguments);
+            break;
+          case 'full_pipeline':
+            result = await this.fullPipeline(request.params.arguments);
+            break;
+          case 'get_config':
+            result = await this.getConfig();
+            break;
+          case 'get_cache_status':
+            result = await this.getCacheStatus(request.params.arguments);
+            break;
+          case 'query_knowledge_base':
+            result = await this.queryKnowledgeBase(request.params.arguments);
+            break;
+          case 'rebuild_knowledge_index':
+            result = await this.rebuildKnowledgeIndex(request.params.arguments);
+            break;
+          default:
+            const availableTools = ['analyze_java_project', 'generate_documentation', 'generate_release_notes', 'full_pipeline', 'get_config', 'get_cache_status', 'query_knowledge_base', 'rebuild_knowledge_index'];
+            this.logError(`Unknown tool requested: ${request.params.name}. Available tools: ${availableTools.join(', ')}`);
+            result = {
+              content: [
                 {
                     type: 'text',
                     text: `Current Server Configuration:\n${JSON.stringify(configDisplay, null, 2)}`,
@@ -1460,40 +1591,182 @@ NOTE: A source block marked with class openapi will be wrapped in an OpenAPI Doc
 ${yamlContent}
 ----
 `;
-            this.logInfo(`Successfully generated ${yamlContent.length} characters of OpenAPI YAML for ${serviceName}`);
-            return adocContent;
-        }
-        catch (error) {
-            this.logError('OpenAI API call failed for OpenAPI specification', error);
-            throw new Error(`Failed to generate OpenAPI specification: ${error instanceof Error ? error.message : String(error)}`);
-        }
+
+    this.logInfo(`Successfully generated ${yamlContent.length} characters of OpenAPI YAML for ${serviceName}`);
+    return adocContent;
+
+  } catch (error) {
+    this.logError('OpenAI API call failed for OpenAPI specification', error);
+    throw new Error(`Failed to generate OpenAPI specification: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+
+
+
+  // ============================================================================
+  // Knowledge Base Tools (Privacy-Safe)
+  // ============================================================================
+
+  /**
+   * Query the knowledge base with a question
+   */
+  private async queryKnowledgeBase(args: any): Promise<CallToolResult> {
+    try {
+      const question = args.question;
+      if (!question) {
+        throw new Error('Question parameter is required');
+      }
+
+      this.logInfo(`🔍 Querying knowledge base: "${question}"`);
+
+      // Initialize handler if not already done
+      if (!this.knowledgeBaseHandler) {
+        const dataDir = path.resolve(__dirname, '../data');
+        this.knowledgeBaseHandler = new KnowledgeBaseQueryHandler(
+          this.config.openaiApiKey,
+          dataDir
+        );
+      }
+
+      // Execute query
+      const result = await this.knowledgeBaseHandler.query(question);
+
+      // Format response
+      let responseText = `## Answer\n\n${result.answer}\n\n`;
+
+      if (result.sources.length > 0) {
+        responseText += `## Sources (${result.confidence} confidence)\n\n`;
+        result.sources.forEach((source, index) => {
+          responseText += `${index + 1}. **${source.file}** (${source.type})\n`;
+          if (source.snippet) {
+            responseText += `   ${source.snippet}\n`;
+          }
+          responseText += `   Relevance: ${(source.relevance * 100).toFixed(0)}%\n\n`;
+        });
+      }
+
+      if (result.suggestedFollowUps && result.suggestedFollowUps.length > 0) {
+        responseText += `## Suggested Follow-up Questions\n\n`;
+        result.suggestedFollowUps.forEach((q, index) => {
+          responseText += `${index + 1}. ${q}\n`;
+        });
+      }
+
+      responseText += `\n---\n_Privacy Note: This answer was generated from code structure metadata only. No actual implementation code was sent to the LLM._`;
+
+      this.logInfo(`✅ Knowledge base query completed (${result.confidence} confidence)`);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: responseText,
+          },
+        ],
+      };
+    } catch (error) {
+      this.logError('Knowledge base query failed', error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ Error querying knowledge base: ${error instanceof Error ? error.message : String(error)}\n\nMake sure the knowledge base index exists. Run 'rebuild_knowledge_index' tool first.`,
+          },
+        ],
+        isError: true,
+      };
     }
-    async run() {
-        const transport = new StdioServerTransport();
-        await this.server.connect(transport);
-        this.logInfo('🚀 Java Documentation MCP Server with Jira Integration running on stdio');
-        // Auto-run pipeline if configured
-        if (this.config.autoRunPipeline && this.config.microservicePath) {
-            try {
-                this.logInfo('🔄 Auto-running documentation pipeline...');
-                await this.fullPipeline({});
-                this.logInfo('✅ Auto-run pipeline completed successfully');
-            }
-            catch (error) {
-                this.logError('❌ Auto-run pipeline failed', error);
-            }
-        }
+  }
+
+  /**
+   * Rebuild the knowledge base index
+   */
+  private async rebuildKnowledgeIndex(args: any): Promise<CallToolResult> {
+    try {
+      const projectPath = args.projectPath || path.resolve(__dirname, '../../autodev-ui');
+      
+      this.logInfo(`🔄 Rebuilding knowledge base index for: ${projectPath}`);
+
+      // Run the build script
+      const scriptPath = path.resolve(__dirname, '../scripts/build-knowledge-base.js');
+      
+      const result = await this.executeScript(
+        'node',
+        [scriptPath, `--project=${projectPath}`]
+      );
+
+      this.logInfo('✅ Knowledge base index rebuilt successfully');
+
+      // Reset handler to force reload on next query
+      this.knowledgeBaseHandler = null;
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✅ Knowledge base index rebuilt successfully!\n\n${result}\n\n_The index contains code structure metadata only - no implementation details._`,
+          },
+        ],
+      };
+    } catch (error) {
+      this.logError('Failed to rebuild knowledge index', error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ Error rebuilding knowledge index: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
     }
+  }
+
+  /**
+   * Execute a script and return output
+   */
+  private executeScript(command: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(command, args, { shell: true });
+      let output = '';
+      let errorOutput = '';
+
+      proc.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      proc.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve(output || errorOutput);
+        } else {
+          reject(new Error(`Script exited with code ${code}: ${errorOutput}`));
+        }
+      });
+
+      proc.on('error', (error) => {
+        reject(error);
+      });
+    });
+  }
 }
 // Main execution
 async function main() {
-    console.error('\n🔧 Starting AutoDoc.AI MCP Server with Jira Integration...');
-    console.info(`📍 Current directory: ${process.cwd()}`);
-    console.info(`🐛 Node version: ${process.version}`);
-    const server = new JavaDocumentationMCPServer();
-    console.info('✅ Server instance created');
-    console.info('🚀 Successfully launched MCP server');
-    await server.run();
+  console.error('\n🔧 Starting AutoDoc.AI MCP Server with Jira Integration...');
+  console.info(`📍 Current directory: ${process.cwd()}`);
+  console.info(`🐛 Node version: ${process.version}`);
+  
+  const mcpServer = new JavaDocumentationMCPServer();
+  console.info('✅ Server instance created');
+  
+  const transport = new StdioServerTransport();
+  await mcpServer.server.connect(transport);
+  
+  console.info('🚀 Successfully launched MCP server');
 }
 // Handle graceful shutdown
 process.on('SIGINT', async () => {

@@ -1,0 +1,63 @@
+Starting upload...
+Starting upload process...
+Testing Confluence API connection...
+URL: https://auto-dev.atlassian.net/wiki/rest/api
+Space Key: ~712020b6c69404dbf04670bc5ce37ceec425fe
+User: itsshaanram@gmail.com
+API Token: ATATT3xFfG...
+Testing user authentication: https://auto-dev.atlassian.net/wiki/rest/api/user/current
+✅ Authenticated as: SHARAN R (itsshaanram@gmail.com)
+Testing space access: https://auto-dev.atlassian.net/wiki/rest/api/space/~712020b6c69404dbf04670bc5ce37ceec425fe
+✅ Connected to space: SHARAN R (~712020b6c69404dbf04670bc5ce37ceec425fe)
+Scanning for documentation files...
+Checking identityprovider: identityprovider/documentation
+  Found 3 files: ['identityprovider/documentation/detaileddesign.adoc', 'identityprovider/documentation/openApiSpecification.adoc', 'identityprovider/documentation/architecturedesign.adoc']
+Checking enrollment: enrollment/documentation
+  Found 3 files: ['enrollment/documentation/detaileddesign.adoc', 'enrollment/documentation/openApiSpecification.adoc', 'enrollment/documentation/architecturedesign.adoc']
+Checking usermanagement: usermanagement/documentation
+  Found 3 files: ['usermanagement/documentation/detaileddesign.adoc', 'usermanagement/documentation/openApiSpecification.adoc', 'usermanagement/documentation/architecturedesign.adoc']
+Checking vehiclemanagement: vehiclemanagement/documentation
+  Found 3 files: ['vehiclemanagement/documentation/detaileddesign.adoc', 'vehiclemanagement/documentation/openApiSpecification.adoc', 'vehiclemanagement/documentation/architecturedesign.adoc']
+Checking release-notes: release-notes
+  Found 1 release note files: ['release-notes/release-notes.adoc']
+Total services with docs: 5
+Processing 5 services...
+Creating new parent page: Microservices Documentation
+Parent page ID: 3801089
+
+--- Processing service: identityprovider (3 files) ---
+Creating service page: Identityprovider Documentation
+Service page ID: 3833857
+  Skipping file: detaileddesign.adoc -> Detaileddesign - Identityprovider (NO CHANGES)
+  Skipping file: openApiSpecification.adoc -> Openapispecification - Identityprovider (NO CHANGES)
+  Skipping file: architecturedesign.adoc -> Architecturedesign - Identityprovider (NO CHANGES)
+
+--- Processing service: enrollment (3 files) ---
+Creating service page: Enrollment Documentation
+Service page ID: 3866625
+  Skipping file: detaileddesign.adoc -> Detaileddesign - Enrollment (NO CHANGES)
+  Skipping file: openApiSpecification.adoc -> Openapispecification - Enrollment (NO CHANGES)
+  Skipping file: architecturedesign.adoc -> Architecturedesign - Enrollment (NO CHANGES)
+
+--- Processing service: usermanagement (3 files) ---
+Creating service page: Usermanagement Documentation
+Service page ID: 3899393
+  Skipping file: detaileddesign.adoc -> Detaileddesign - Usermanagement (NO CHANGES)
+  Skipping file: openApiSpecification.adoc -> Openapispecification - Usermanagement (NO CHANGES)
+  Skipping file: architecturedesign.adoc -> Architecturedesign - Usermanagement (NO CHANGES)
+
+--- Processing service: vehiclemanagement (3 files) ---
+Creating service page: Vehiclemanagement Documentation
+Service page ID: 3932161
+  Skipping file: detaileddesign.adoc -> Detaileddesign - Vehiclemanagement (NO CHANGES)
+  Skipping file: openApiSpecification.adoc -> Openapispecification - Vehiclemanagement (NO CHANGES)
+  Skipping file: architecturedesign.adoc -> Architecturedesign - Vehiclemanagement (NO CHANGES)
+
+--- Processing service: release-notes (1 files) ---
+  No changes detected in release notes, skipping...
+
+=== Upload Summary ===
+Total files processed: 13
+Files updated: 0
+Files skipped (no changes): 13
+Upload complete.

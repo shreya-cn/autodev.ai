@@ -20,15 +20,15 @@ export default function Home() {
   }, [status, router]);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-black">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
         {/* Hero Section */}
-        <div className="bg-dark rounded-2xl p-8 text-white">
-          <h1 className="text-4xl font-bold mb-2">
-            Welcome to <span className="text-primary">AutoDev.ai</span>
+        <div className="rounded-2xl px-7 py-7 text-white border border-green-500/20 shadow-xl" style={{background: 'linear-gradient(135deg, #1a1a1a 0%, #2d4a2e 50%, #1a1a1a 100%)'}}>
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 leading-tight">
+            Welcome to <span style={{color: '#b9ff66'}}>AutoDev.ai</span>
           </h1>
-          <p className="text-lg text-gray-300">
+          <p className="text-sm md:text-base lg:text-lg text-gray-300 leading-relaxed max-w-4xl">
             Your intelligent development assistant for automated workflows and project management
           </p>
         </div>
@@ -36,13 +36,13 @@ export default function Home() {
         {/* Jira Board with Sub-tabs */}
         <div className="space-y-0">
           {/* Sub-tab Navigation */}
-          <div className="flex gap-3 bg-gray-light p-2 rounded-t-2xl">
+          <div className="flex gap-3 bg-gray-900 p-2 rounded-t-2xl border border-gray-800">
             <button
               onClick={() => setActiveSubTab('sprint')}
               className={`flex-1 px-6 py-4 font-bold text-base rounded-xl transition-all ${
                 activeSubTab === 'sprint'
                   ? 'bg-primary text-dark shadow-lg'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 shadow-sm'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700 shadow-sm border border-gray-700'
               }`}
             >
               Current Sprint
@@ -52,7 +52,7 @@ export default function Home() {
               className={`flex-1 px-6 py-4 font-bold text-base rounded-xl transition-all ${
                 activeSubTab === 'backlog'
                   ? 'bg-primary text-dark shadow-lg'
-                  : 'bg-white text-gray-600 hover:bg-gray-100 shadow-sm'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700 shadow-sm border border-gray-700'
               }`}
             >
               Backlog
@@ -60,7 +60,7 @@ export default function Home() {
           </div>
 
           {/* Content */}
-          <div className="bg-white rounded-b-2xl shadow-lg">
+          <div className="bg-dark rounded-b-2xl shadow-lg border border-gray-800">
             {activeSubTab === 'sprint' ? <JiraBoard /> : <Backlog />}
           </div>
         </div>

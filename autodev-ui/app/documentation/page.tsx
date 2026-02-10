@@ -28,6 +28,34 @@ export default function Documentation() {
   const [selectedService, setSelectedService] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
+  const formatRelativeTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const docDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    const timeStr = date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    if (docDate.getTime() === today.getTime()) {
+      return `today at ${timeStr}`;
+    } else if (docDate.getTime() === yesterday.getTime()) {
+      return `yesterday at ${timeStr}`;
+    } else {
+      const monthDay = date.toLocaleDateString('en-US', { 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      return `${monthDay} at ${timeStr}`;
+    }
+  };
+
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login');
@@ -67,10 +95,13 @@ export default function Documentation() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
+      <div className="min-h-screen bg-black px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
         <div className="max-w-[1600px] mx-auto">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <div className="relative">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-800"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-transparent border-t-primary absolute top-0 left-0" style={{background: 'conic-gradient(from 0deg, #1a1a1a, #86efac, #1a1a1a)', borderRadius: '50%', WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 4px), #fff 0)', mask: 'radial-gradient(farthest-side, transparent calc(100% - 4px), #fff 0)'}}></div>
+            </div>
           </div>
         </div>
       </div>
@@ -78,40 +109,38 @@ export default function Documentation() {
   }
 
   return (
-    <div className="min-h-screen bg-white px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
+    <div className="min-h-screen bg-black px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
       <div className="max-w-[1600px] mx-auto">
         <div className="space-y-6 md:space-y-8 lg:space-y-10">{/* Header */}
-            <div className="bg-dark rounded-2xl md:rounded-3xl px-6 md:px-10 lg:px-14 xl:px-16 py-8 md:py-12 lg:py-14 xl:py-16 text-white shadow-xl">
-              <h1 className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold mb-3 md:mb-4 lg:mb-5 leading-tight">
-                <span className="text-primary">Documentation</span>
+            <div className="rounded-2xl px-7 py-7 text-white shadow-xl border border-green-500/20" style={{background: 'linear-gradient(135deg, #1a1a1a 0%, #2d4a2e 50%, #1a1a1a 100%)'}}>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 leading-tight">
+                <span style={{color: '#b9ff66'}}>Documentation</span>
               </h1>
-              <p className="text-sm md:text-base lg:text-lg xl:text-xl text-gray-300 leading-relaxed max-w-4xl">
+              <p className="text-sm md:text-base lg:text-lg text-gray-300 leading-relaxed max-w-4xl">
                 Auto-generated project documentation and technical specifications
               </p>
           </div>
 
           {/* Confluence Integration Info */}
-          {confluenceConfig && (
-            <div className="bg-gradient-to-r from-dark to-gray-800 rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 xl:p-12 shadow-lg">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-white mb-2">Confluence Integration</h2>
-                  <p className="text-sm text-gray-300">View and manage documentation in Confluence</p>
-                </div>
-                <a 
-                  href={confluenceConfig.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-primary text-dark px-5 py-3 rounded-lg font-bold hover:bg-opacity-90 transition-all shadow-lg hover:shadow-xl text-sm md:text-base"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  Open Confluence
-                </a>
+          <div className="bg-gradient-to-r from-dark to-gray-800 rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 xl:p-12 shadow-lg">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-white mb-2">Confluence Integration</h2>
+                <p className="text-sm text-gray-300">View and manage documentation in Confluence</p>
               </div>
+              <a 
+                href="https://auto-dev.atlassian.net/wiki/spaces/~712020b6c69404dbf04670bc5ce37ceec425fe/overview" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-primary text-dark px-5 py-3 rounded-lg font-bold hover:bg-opacity-90 transition-all shadow-lg hover:shadow-xl text-sm md:text-base"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                Open Confluence
+              </a>
             </div>
-          )}
+          </div>
 
           {/* Microservices Filter */}
           <div className="bg-gray-light rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 xl:p-12 shadow-lg">
@@ -153,11 +182,11 @@ export default function Documentation() {
                 </div>
               ) : (
                 filteredDocs.map((doc, index) => (
-                  <div key={index} className="bg-white rounded-xl p-5 md:p-6 shadow-md hover:shadow-lg transition-shadow">
+                  <div key={index} className="bg-dark rounded-xl p-5 md:p-6 shadow-md hover:shadow-lg transition-shadow border border-green-500/20">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <h3 className="text-lg md:text-xl font-bold text-dark mb-1">{doc.title}</h3>
-                        <div className="flex items-center gap-3 text-sm text-gray">
+                        <h3 className="text-lg md:text-xl font-bold text-white mb-1">{doc.title}</h3>
+                        <div className="flex items-center gap-3 text-sm text-gray-400">
                           <span className="bg-primary text-dark px-3 py-1 rounded-full font-semibold">
                             {doc.service}
                           </span>
@@ -171,8 +200,8 @@ export default function Documentation() {
                       {doc.content}...
                     </div>
                     <div className="mt-4 flex items-center justify-between">
-                      <span className="text-xs text-gray">
-                        Last modified: {doc.lastModified ? new Date(doc.lastModified).toLocaleDateString() : 'Unknown'}
+                      <span className="text-xs" style={{color: '#b9ff66'}}>
+                        Last modified: {doc.lastModified ? formatRelativeTime(doc.lastModified) : 'Unknown'}
                       </span>
                       <a
                         href={doc.pageUrl || `${confluenceConfig?.url}/wiki/spaces/${confluenceConfig?.spaceKey}`}

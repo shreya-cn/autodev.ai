@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+    types: [opened, synchronize, reopened]
 
 jobs:
   generate-autodocs:
@@ -14,10 +15,11 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout PR code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
@@ -53,4 +55,4 @@ jobs:
       - name: Push changes to PR branch
         if: steps.changes.outputs.changed == 'true'
         run: |
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}

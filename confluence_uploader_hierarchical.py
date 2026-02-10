@@ -701,15 +701,24 @@ class ConfluenceUploader:
         print(f"Processing {len(docs)} services...")
         parent_title = "Microservices Documentation"
         parent_page = self.find_existing_page(parent_title)
-        parent_content = f"<h1>{parent_title}</h1><p>Updated: {datetime.now()}</p>"
 
         if parent_page:
             print(f"Updating existing parent page: {parent_title}")
-            self.update_page(parent_page['id'], parent_title, parent_content, parent_page['version']['number'])
             parent_id = parent_page['id']
+            page_url = f"{CONFLUENCE_URL}/wiki/spaces/{SPACE_KEY}/pages/{parent_id}/{parent_title.replace(' ', '+')}"
+            parent_content = f"<h1>{parent_title}</h1><p>Updated: {datetime.now()}</p><p><a href=\"{page_url}\" target=\"_blank\" style=\"background-color: #0052CC; color: white; padding: 8px 16px; text-decoration: none; border-radius: 3px; display: inline-block;\">🔗 View in Confluence</a></p>"
+            self.update_page(parent_page['id'], parent_title, parent_content, parent_page['version']['number'])
         else:
             print(f"Creating new parent page: {parent_title}")
+            parent_content = f"<h1>{parent_title}</h1><p>Updated: {datetime.now()}</p>"
             parent_id = self.create_page(parent_title, parent_content)
+            if parent_id:
+                # Update with URL after creation
+                page_url = f"{CONFLUENCE_URL}/wiki/spaces/{SPACE_KEY}/pages/{parent_id}/{parent_title.replace(' ', '+')}"
+                parent_content = f"<h1>{parent_title}</h1><p>Updated: {datetime.now()}</p><p><a href=\"{page_url}\" target=\"_blank\" style=\"background-color: #0052CC; color: white; padding: 8px 16px; text-decoration: none; border-radius: 3px; display: inline-block;\">🔗 View in Confluence</a></p>"
+                created_page = self.find_existing_page(parent_title)
+                if created_page:
+                    self.update_page(parent_id, parent_title, parent_content, created_page['version']['number'])
 
         print(f"Parent page ID: {parent_id}")
 
@@ -750,14 +759,23 @@ class ConfluenceUploader:
             # Handle regular service documentation
             svc_title = f"{svc.title()} Documentation"
             svc_page = self.find_existing_page(svc_title)
-            svc_content = f"<h2>{svc_title}</h2><p>Updated: {datetime.now()}</p>"
             if svc_page:
                 print(f"Updating service page: {svc_title}")
-                self.update_page(svc_page['id'], svc_title, svc_content, svc_page['version']['number'], parent_id)
                 svc_id = svc_page['id']
+                page_url = f"{CONFLUENCE_URL}/wiki/spaces/{SPACE_KEY}/pages/{svc_id}/{svc_title.replace(' ', '+')}"
+                svc_content = f"<h2>{svc_title}</h2><p>Updated: {datetime.now()}</p><p><a href=\"{page_url}\" target=\"_blank\" style=\"background-color: #0052CC; color: white; padding: 8px 16px; text-decoration: none; border-radius: 3px; display: inline-block;\">🔗 View in Confluence</a></p>"
+                self.update_page(svc_id, svc_title, svc_content, svc_page['version']['number'], parent_id)
             else:
                 print(f"Creating service page: {svc_title}")
+                svc_content = f"<h2>{svc_title}</h2><p>Updated: {datetime.now()}</p>"
                 svc_id = self.create_page(svc_title, svc_content, parent_id)
+                if svc_id:
+                    # Update with URL after creation
+                    page_url = f"{CONFLUENCE_URL}/wiki/spaces/{SPACE_KEY}/pages/{svc_id}/{svc_title.replace(' ', '+')}"
+                    svc_content = f"<h2>{svc_title}</h2><p>Updated: {datetime.now()}</p><p><a href=\"{page_url}\" target=\"_blank\" style=\"background-color: #0052CC; color: white; padding: 8px 16px; text-decoration: none; border-radius: 3px; display: inline-block;\">🔗 View in Confluence</a></p>"
+                    created_page = self.find_existing_page(svc_title)
+                    if created_page:
+                        self.update_page(svc_id, svc_title, svc_content, created_page['version']['number'], parent_id)
 
             print(f"Service page ID: {svc_id}")
 
@@ -780,16 +798,29 @@ class ConfluenceUploader:
                 # Enhanced diagram rendering
                 html = self.convert_to_html(content, Path(f).suffix)
                 page = self.find_existing_page(title)
-                page_content = f"<h3>{title}</h3><p>File: {fname}</p><hr/>{html}"
                 
                 if page:
                     print(f"    Updating existing page: {title}")
-                    result = self.update_page(page['id'], title, page_content, page['version']['number'], svc_id)
+                    page_id = page['id']
+                    # Generate the direct page URL
+                    page_url = f"{CONFLUENCE_URL}/wiki/spaces/{SPACE_KEY}/pages/{page_id}/{title.replace(' ', '+')}"
+                    page_content = f"<h3>{title}</h3><p>File: {fname}</p><p><a href=\"{page_url}\" target=\"_blank\" style=\"background-color: #0052CC; color: white; padding: 8px 16px; text-decoration: none; border-radius: 3px; display: inline-block;\">🔗 View in Confluence</a></p><hr/>{html}"
+                    result = self.update_page(page_id, title, page_content, page['version']['number'], svc_id)
                     print(f"    Update result: {result}")
+                    print(f"    Page URL: {page_url}")
                 else:
                     print(f"    Creating new page: {title}")
-                    page_id = self.create_page(title, page_content, svc_id)
-                    print(f"    Create result: {page_id}")
+                    page_id = self.create_page(title, f"<h3>{title}</h3><p>File: {fname}</p><hr/>{html}", svc_id)
+                    if page_id:
+                        # Update with the correct URL after creation
+                        page_url = f"{CONFLUENCE_URL}/wiki/spaces/{SPACE_KEY}/pages/{page_id}/{title.replace(' ', '+')}"
+                        page_content = f"<h3>{title}</h3><p>File: {fname}</p><p><a href=\"{page_url}\" target=\"_blank\" style=\"background-color: #0052CC; color: white; padding: 8px 16px; text-decoration: none; border-radius: 3px; display: inline-block;\">🔗 View in Confluence</a></p><hr/>{html}"
+                        # Get version to update
+                        created_page = self.find_existing_page(title)
+                        if created_page:
+                            self.update_page(page_id, title, page_content, created_page['version']['number'], svc_id)
+                        print(f"    Create result: {page_id}")
+                        print(f"    Page URL: {page_url}")
 
                 # Update hash for this file
                 updated_hashes[f] = self.get_file_hash(f)

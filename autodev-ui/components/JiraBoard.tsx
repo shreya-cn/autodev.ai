@@ -58,7 +58,7 @@ function SortableTicketCard({ ticket, jiraBaseUrl, onTicketClick, onAssigneeClic
       style={style}
       {...attributes}
       {...listeners}
-      className="bg-gray-light rounded-lg p-3 border-l-4 border-primary hover:shadow-md hover:bg-white transition cursor-grab active:cursor-grabbing relative"
+      className="bg-gray-800 rounded-lg p-3 border-l-4 border-primary hover:shadow-md hover:bg-gray-700 transition cursor-grab active:cursor-grabbing relative"
     >
       <div className="flex items-start justify-between mb-2">
         <span 
@@ -66,26 +66,26 @@ function SortableTicketCard({ ticket, jiraBaseUrl, onTicketClick, onAssigneeClic
             e.stopPropagation();
             onTicketClick(ticket.key);
           }}
-          className="text-xs font-semibold text-primary bg-dark px-2 py-1 rounded cursor-pointer hover:bg-opacity-80"
+          className="text-xs font-semibold text-dark bg-primary px-2 py-1 rounded cursor-pointer hover:bg-opacity-80"
         >
           {ticket.key}
         </span>
       </div>
-      <h4 className="text-sm font-medium text-dark mb-2 line-clamp-2">
+      <h4 className="text-sm font-medium text-gray-200 mb-2 line-clamp-2">
         {ticket.summary}
       </h4>
       <div className="flex items-center justify-between relative">
         <button
           onClick={(e) => onAssigneeClick(ticket.key, e)}
           disabled={assigningTicket === ticket.key}
-          className="flex items-center space-x-2 hover:bg-gray-100 p-1 rounded transition-colors disabled:opacity-50"
+          className="flex items-center space-x-2 bg-gray-700/50 hover:bg-gray-600 p-1 px-2 rounded transition-colors disabled:opacity-50"
         >
           <div className={`h-6 w-6 rounded-full flex items-center justify-center ${getAssigneeColor(ticket.assignee)}`}>
             <span className="text-xs font-semibold">
               {getAssigneeInitials(ticket.assignee)}
             </span>
           </div>
-          <span className="text-xs text-gray">{assigningTicket === ticket.key ? 'Updating...' : (ticket.assignee || 'Unassigned')}</span>
+          <span className="text-xs text-gray-200 font-medium">{assigningTicket === ticket.key ? 'Updating...' : (ticket.assignee || 'Unassigned')}</span>
           <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
@@ -142,12 +142,12 @@ function DroppableColumn({ column, jiraBaseUrl, onTicketClick, onAssigneeClick, 
   return (
     <div
       ref={setNodeRef}
-      className={`bg-white rounded-xl md:rounded-2xl p-4 md:p-5 lg:p-6 min-h-[350px] md:min-h-[400px] shadow-md hover:shadow-xl transition-all ${
-        isOver ? 'ring-2 ring-primary bg-primary/5' : ''
+      className={`bg-gray-900 rounded-xl md:rounded-2xl p-4 md:p-5 lg:p-6 min-h-[350px] md:min-h-[400px] shadow-md hover:shadow-xl transition-all border ${
+        isOver ? 'ring-2 ring-primary bg-primary/5 border-green-500' : 'border-gray-800'
       }`}
     >
-      <div className="flex items-center justify-between mb-4 md:mb-5 pb-3 md:pb-4 border-b-2 border-gray-200">
-        <h3 className="font-bold text-sm md:text-base lg:text-lg text-dark">{column.name}</h3>
+      <div className="flex items-center justify-between mb-4 md:mb-5 pb-3 md:pb-4 border-b-2 border-gray-800">
+        <h3 className="font-bold text-sm md:text-base lg:text-lg text-white">{column.name}</h3>
         <span className="bg-primary text-dark text-xs md:text-sm font-bold px-3 py-1.5 rounded-full shadow-sm">
           {column.tickets.length}
         </span>
@@ -504,17 +504,17 @@ export default function JiraBoard() {
   };
 
   const getAssigneeColor = (name: string) => {
-    if (!name || name === 'Unassigned') return 'bg-gray-200 text-gray-600';
+    if (!name || name === 'Unassigned') return 'bg-gray-600 text-white';
     
     const colors = [
-      'bg-blue-500 text-white',
-      'bg-green-500 text-white',
-      'bg-purple-500 text-white',
-      'bg-pink-500 text-white',
-      'bg-indigo-500 text-white',
-      'bg-yellow-500 text-white',
-      'bg-red-500 text-white',
-      'bg-teal-500 text-white',
+      'bg-blue-600 text-white font-bold shadow-sm',
+      'bg-green-600 text-white font-bold shadow-sm',
+      'bg-purple-600 text-white font-bold shadow-sm',
+      'bg-pink-600 text-white font-bold shadow-sm',
+      'bg-indigo-600 text-white font-bold shadow-sm',
+      'bg-orange-600 text-white font-bold shadow-sm',
+      'bg-red-600 text-white font-bold shadow-sm',
+      'bg-cyan-600 text-white font-bold shadow-sm',
     ];
     
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -539,11 +539,11 @@ export default function JiraBoard() {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="p-6">
+      <div className="p-6 bg-dark rounded-2xl">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4 mb-6 md:mb-8">
           <div>
-            <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-dark">Jira Board</h2>
-            <p className="text-sm text-gray-600 mt-1">Drag tickets to change status</p>
+            <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-white">Jira Board</h2>
+            <p className="text-sm text-gray-400 mt-1">Drag tickets to change status</p>
           </div>
           <button
             onClick={fetchJiraBoard}
