@@ -2,54 +2,82 @@ import fs from 'fs';
 import { execSync, spawn } from 'child_process';
 import { Octokit } from '@octokit/rest';
 
-// --- Environment Variables ---
+/* ============================
+   Environment
+============================ */
+
 const REPO_OWNER = process.env.REPO_OWNER;
 const REPO_NAME = process.env.REPO_NAME;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-// Determine MCP server entrypoint
-const MCP_SERVER_PATH = fs.existsSync('./dist/index.js')
-  ? './dist/index.js'
-  : './dist/mcp-server.js';
 
 if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
   console.error('❌ Missing GITHUB_TOKEN or OPENAI_API_KEY');
   process.exit(1);
 }
 
+// Determine MCP server entrypoint
+const MCP_SERVER_PATH = fs.existsSync('./dist/index.js')
+  ? './dist/index.js'
+  : './dist/mcp-server.js';
+
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-/**
- * Orchestrate MCP review via JSON-RPC
- */
-async function generateMCPReview() {
-  return new Promise((resolve) => {
-    console.log('🤖 Orchestrating MCP Review via JSON-RPC...');
+/* ============================
+   GitHub helpers
+============================ */
+
+async function getPRDiff(prNumber) {
+  const { data } = await octokit.pulls.get({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    pull_number: prNumber,
+    mediaType: { format: 'diff' },
+  });
+  return data;
+}
+
+async function getPRFiles(prNumber) {
+  const { data } = await octokit.pulls.listFiles({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    pull_number: prNumber,
+  });
+  return data.map(f => f.filename);
+}
+
+/* ============================
+   MCP orchestration
+============================ */
+
+async function generateMCPReview(prNumber) {
+  return new Promise(async (resolve) => {
+    console.log('🤖 Orchestrating MCP PR Review via JSON-RPC...');
 
     if (!fs.existsSync(MCP_SERVER_PATH)) {
       resolve(`⚠️ MCP server not found at ${MCP_SERVER_PATH}`);
       return;
     }
 
+    const diff = await getPRDiff(prNumber);
+    const files = await getPRFiles(prNumber);
+
     const serverProcess = spawn('node', [MCP_SERVER_PATH], {
-      env: { ...process.env },
+      env: { ...process.env, EXIT_ON_TOOL_COMPLETE: 'true' },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    let reviewResult = '';
     let finished = false;
-    let toolSent = false;
+    let reviewResult = '';
 
     function handleMCPOutput(data) {
       const message = data.toString();
       console.log(`[MCP]: ${message.trim()}`);
 
-      // Capture JSON-RPC responses
       try {
         const lines = message
           .split('\n')
-          .filter((l) => l.trim().startsWith('{'));
+          .filter(l => l.trim().startsWith('{'));
 
         for (const line of lines) {
           const json = JSON.parse(line);
@@ -60,26 +88,24 @@ async function generateMCPReview() {
           }
         }
       } catch {
-        // ignore partial / non-JSON output
+        // ignore partial JSON
       }
     }
 
     serverProcess.stdout.on('data', handleMCPOutput);
     serverProcess.stderr.on('data', handleMCPOutput);
 
-    // 🚀 Send tool call after MCP has time to boot (do NOT wait on logs)
+    // 🚀 Fire tool call after short boot delay
     setTimeout(() => {
-      if (toolSent || finished) return;
-      toolSent = true;
-
       const toolCall = JSON.stringify({
         jsonrpc: '2.0',
         id: 'pr-review-call',
         method: 'tools/call',
         params: {
-          name: 'full_pipeline',
+          name: 'review_code_changes',
           arguments: {
-            projectPath: './',
+            diff,
+            files,
           },
         },
       });
@@ -100,7 +126,9 @@ async function generateMCPReview() {
   });
 }
 
-// --- Helper checks ---
+/* ============================
+   Local checks
+============================ */
 
 function runLint() {
   try {
@@ -132,6 +160,10 @@ function runAudit() {
   }
 }
 
+/* ============================
+   PR comment
+============================ */
+
 async function postPRCommentIfNew(prNumber, body) {
   const { data: comments } = await octokit.issues.listComments({
     owner: REPO_OWNER,
@@ -140,7 +172,7 @@ async function postPRCommentIfNew(prNumber, body) {
   });
 
   const botTag = '### 🤖 **AutoDoc Automated Review**';
-  if (comments.some((c) => c.body.includes(botTag))) return;
+  if (comments.some(c => c.body.includes(botTag))) return;
 
   await octokit.issues.createComment({
     owner: REPO_OWNER,
@@ -150,7 +182,9 @@ async function postPRCommentIfNew(prNumber, body) {
   });
 }
 
-// --- Main ---
+/* ============================
+   Main
+============================ */
 
 async function main() {
   const prNumber = process.argv[2];
@@ -160,7 +194,7 @@ async function main() {
     runLint(),
     runBuildCheck(),
     runAudit(),
-    generateMCPReview(),
+    generateMCPReview(prNumber),
   ]);
 
   const summary = /fail|error|⚠️|vulnerabilities/i.test(lint + audit)
@@ -185,7 +219,7 @@ ${build}
 #### 🛡️ Vulnerability Check
 ${audit}
 
-#### 💡 MCP AI Review Suggestions
+#### 💡 MCP AI PR Review
 ${mcp}
 ---
 `;
@@ -193,7 +227,7 @@ ${mcp}
   await postPRCommentIfNew(prNumber, body);
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.error(err);
   process.exit(1);
 });
