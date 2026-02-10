@@ -49,18 +49,20 @@ async function generateMCPReview(changedFiles) {
         message.includes('ready') ||
         message.includes('Server')
       ) {
-        const toolCall = JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'pr-review-call',
-          method: 'tools/call',
-          params: {
-            name: 'review_code_changes',
-            arguments: {
-              files: changedFiles,
-              projectPath: './',
-            },
-          },
-        });
+        // Change this line in the generateMCPReview function
+const toolCall = JSON.stringify({
+  jsonrpc: '2.0',
+  id: 'pr-review-call',
+  method: 'tools/call',
+  params: {
+    // UPDATED: Using one of the available tools found in your log
+    name: 'full_pipeline', 
+    arguments: {
+      // Ensure these arguments match what the 'full_pipeline' tool expects
+      projectPath: './' 
+    }
+  }
+});
         serverProcess.stdin.write(toolCall + '\n');
       }
 
