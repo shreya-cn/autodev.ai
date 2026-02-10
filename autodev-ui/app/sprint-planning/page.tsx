@@ -108,24 +108,6 @@ export default function SprintPlanning() {
     }
   };
 
-  const runLLMJiraWorkflow = async () => {
-    setTriggering(true);
-    setTriggerResult('');
-    try {
-      const res = await fetch('/api/sprint-planning/trigger-llm-jira-workflow', {
-        method: 'POST',
-      });
-      if (res.ok) {
-        setTriggerResult('Workflow triggered successfully!');
-      } else {
-        setTriggerResult('Failed to trigger workflow.');
-      }
-    } catch (err) {
-      setTriggerResult('Error triggering workflow.');
-    }
-    setTriggering(false);
-  };
-
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -182,20 +164,6 @@ export default function SprintPlanning() {
           <p className="text-sm md:text-base lg:text-lg text-gray-300 leading-relaxed max-w-4xl">
             AI-powered sprint composition and capacity analysis
           </p>
-        </div>
-
-        {/* Trigger Button */}
-        <div className="mb-6">
-          <button
-            className="bg-primary text-white font-bold py-2 px-4 rounded shadow hover:bg-green-700 transition disabled:opacity-50"
-            onClick={runLLMJiraWorkflow}
-            disabled={triggering}
-          >
-            {triggering ? 'Triggering...' : 'Run Scheduled LLM Jira Automation'}
-          </button>
-          {triggerResult && (
-            <div className="mt-2 text-sm text-dark">{triggerResult}</div>
-          )}
         </div>
 
         {/* Metrics Cards */}

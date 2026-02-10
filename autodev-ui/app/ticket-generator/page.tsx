@@ -2,14 +2,36 @@
 
 import { useSession } from 'next-auth/react';
 import { redirect, useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export default function TicketGeneratorPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  const [triggering, setTriggering] = useState(false);
+  const [triggerResult, setTriggerResult] = useState('');
+
   if (status === 'unauthenticated') {
     redirect('/login');
   }
+
+  const runConfluenceRequirementsWorkflow = async (e) => {
+    e.stopPropagation();
+    setTriggering(true);
+    setTriggerResult('');
+    try {
+      const res = await fetch('/api/sprint-planning/trigger-llm-jira-workflow', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setTriggerResult('Workflow triggered successfully! Tickets created.');
+      } else {
+        setTriggerResult(data.error || 'Failed to trigger workflow.');
+      }
+    } catch (err) {
+      setTriggerResult('Error triggering workflow.');
+    }
+    setTriggering(false);
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen bg-black">
@@ -113,6 +135,67 @@ export default function TicketGeneratorPage() {
               <span className="inline-block px-4 py-2 rounded-lg font-semibold" style={{backgroundColor: '#b9ff66', color: '#000'}}>
                 Get Started →
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Third Division (Centered Below) */}
+        <div className="flex justify-center mt-8">
+          <div
+            onClick={runConfluenceRequirementsWorkflow}
+            className={`w-full max-w-2xl bg-gray-900 border border-green-500/20 rounded-xl p-8 cursor-pointer hover:border-green-500/40 transition-all hover:shadow-xl hover:shadow-green-500/10 group ${triggering ? 'opacity-70 pointer-events-none' : ''}`}
+          >
+            <div className="flex flex-col items-center">
+              {/* Icon */}
+              <div className="p-4 rounded-full bg-gray-800 group-hover:bg-gray-700 transition-colors mb-6">
+                <svg className="w-12 h-12" style={{ color: '#b9ff66' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+
+              <h2 className="text-2xl font-bold text-white text-center mb-3">
+                Confluence Requirements Sync
+              </h2>
+
+              <p className="text-gray-400 text-center mb-6">
+                Search your Confluence space for pages with requirement in the title and automatically create Jira tickets based on their content.
+              </p>
+
+              {/* Feature Points List (Vertical Style) */}
+              <div className="space-y-2 mb-8">
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <svg className="w-4 h-4" style={{ color: '#b9ff66' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Automatic requirement page fetching</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <svg className="w-4 h-4" style={{ color: '#b9ff66' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>AI-powered Jira ticket creation</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <svg className="w-4 h-4" style={{ color: '#b9ff66' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Story points and technical estimation</span>
+                </div>
+              </div>
+
+              {/* Result Message */}
+              {triggerResult && (
+                <div className={`mb-6 text-sm font-medium ${triggerResult.includes('successfully') ? 'text-green-400' : 'text-red-400'}`}>
+                  {triggerResult}
+                </div>
+              )}
+
+              {/* Action Button at the bottom */}
+              <div className="text-center w-full">
+                <span className="inline-block px-8 py-2 rounded-lg font-semibold" style={{ backgroundColor: '#b9ff66', color: '#000' }}>
+                  {triggering ? 'Triggering...' : 'Sync Requirements →'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
