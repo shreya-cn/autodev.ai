@@ -1,19 +1,22 @@
 import fs from 'fs';
 import { execSync } from 'child_process';
 import { Octokit } from '@octokit/rest';
+import { OpenAI } from 'openai';
 
 // Environment Variables
 const REPO_OWNER = process.env.REPO_OWNER || 'your-org';
 const REPO_NAME = process.env.REPO_NAME || 'your-repo';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-
-if (!GITHUB_TOKEN) {
-  console.error('Missing GITHUB_TOKEN');
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4';
+ 
+if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
+  console.error('Missing GITHUB_TOKEN or OPENAI_API_KEY');
   process.exit(1);
 }
-
+ 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
-const MCP_DOC_PATH = 'mcp-doc-output.txt';
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // --- Helper Functions ---
 
@@ -25,7 +28,7 @@ async function getChangedFiles(prNumber) {
   });
   return data.map(f => f.filename.replace(/^autodoc-ai-mcp-server\//, ''));
 }
-
+ 
 function runLint(files) {
   const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts'));
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
@@ -35,7 +38,7 @@ function runLint(files) {
     return e.stdout || e.message;
   }
 }
-
+ 
 function runBuildCheck() {
   try {
     execSync('npm run build', { encoding: 'utf-8' });
@@ -92,8 +95,9 @@ function runTestCoverage() {
   } catch (e) {
     return e.stdout || e.message;
   }
+  return content;
 }
-
+ 
 async function getExistingComments(prNumber) {
   const { data } = await octokit.issues.listComments({
     owner: REPO_OWNER,
@@ -103,7 +107,7 @@ async function getExistingComments(prNumber) {
   });
   return data.map(c => c.body);
 }
-
+ 
 async function isSimilarComment(a, b) {
   const norm = str => str.replace(/\s+/g, ' ').trim().toLowerCase();
   const na = norm(a);
@@ -117,7 +121,7 @@ async function isSimilarComment(a, b) {
   }
   return (match / minLen) > 0.9;
 }
-
+ 
 async function postPRCommentIfNew(prNumber, body) {
   const existingComments = await getExistingComments(prNumber);
   const botComments = existingComments.filter(c => c && c.startsWith('### 🤖 **AutoDoc Automated Review**'));
@@ -138,39 +142,23 @@ async function postPRCommentIfNew(prNumber, body) {
   console.log('Posted automated review comment to PR #' + prNumber);
 }
 
-async function ensureMCPDoc(prNumber) {
-  let mcpOutput = '';
+async function generateMCPReview() {
   try {
-    mcpOutput = fs.readFileSync(MCP_DOC_PATH, 'utf-8');
+    const result = execSync('node mcp-reviewer.js', { encoding: 'utf-8' });
+    return result.trim();
   } catch (e) {
-    mcpOutput = '';
+    return 'MCP review generation failed.';
   }
-  if (!mcpOutput || mcpOutput.trim().length === 0) {
-    // Generate structured summary of changed files
-    const files = await octokit.pulls.listFiles({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      pull_number: prNumber,
-    });
-    let summary = `## MCP Documentation - PR #${prNumber}\n`;
-    summary += `\n### Changed Files\n`;
-    for (const f of files.data) {
-      summary += `- **${f.filename}** (_${f.status}_)`;
-      if (f.patch) {
-        summary += `\n  <details><summary>Diff Preview</summary>\n\n`;
-        summary += '```diff\n';
-        summary += f.patch.split('\n').slice(0, 10).join('\n');
-        summary += '\n```\n';
-        summary += `</details>\n`;
-      } else {
-        summary += '\n';
-      }
-    }
-    summary += '\n---\n';
-    fs.writeFileSync(MCP_DOC_PATH, summary);
-    return summary;
-  }
-  return mcpOutput;
+}
+
+function extractKeyIssues(output, section) {
+  // Simple extraction for common error/warning patterns
+  const lines = output.split('\n');
+  const issues = lines.filter(line =>
+    /error|fail|warning|ReferenceError|SyntaxError|vulnerab|critical|high|moderate|not found|missing/i.test(line)
+  );
+  if (issues.length === 0) return `No major issues detected in ${section}.`;
+  return `Key issues in ${section}:\n` + issues.join('\n');
 }
 
 // --- Main Logic ---
@@ -182,56 +170,31 @@ async function main() {
     process.exit(1);
   }
 
-  // Load MCP Output
-  let mcpOutput = await ensureMCPDoc(prNumber);
-
   const files = await getChangedFiles(prNumber);
   const lintResult = runLint(files);
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
   const testCoverage = runTestCoverage();
+  const mcpReview = await generateMCPReview();
 
   // Summary logic
   let summary = 'All checks passed ✅';
   const issueKeywords = /fail|error|✖|problems?|Vulnerabilities found: [1-9]|not covered/i;
-  
-  if (issueKeywords.test(lintResult) || issueKeywords.test(buildResult) || issueKeywords.test(auditResult) || issueKeywords.test(testCoverage)) {
+  if (
+    issueKeywords.test(lintResult) ||
+    issueKeywords.test(buildResult) ||
+    issueKeywords.test(auditResult) ||
+    issueKeywords.test(testCoverage)
+  ) {
     summary = 'Some issues found ⚠️';
   }
 
-  const commentBody = `### 🤖 **AutoDoc Automated Review**
-
-**${summary}**
-
----
-
-#### 🧹 **Lint Results**
-\`\`\`
-${lintResult}
-\`\`\`
-
-#### 🏗️ **Build Results**
-\`\`\`
-${buildResult}
-\`\`\`
-
-#### 🧪 **Test Coverage**
-\`\`\`
-${testCoverage}
-\`\`\`
-
-#### 🛡️ **Vulnerability Check**
-${auditResult}
-
-#### 💡 **MCP Suggestions**
-${mcpOutput}
-
----`;
+  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n#### 💡 **MCP Suggestions**\n${mcpReview}\n\n---`;
 
   await postPRCommentIfNew(prNumber, commentBody);
 }
-
+ 
 main().catch(err => {
-  console.error('Error in PR reviewer:', err);
+  console.error(err);
   process.exit(1);
 });

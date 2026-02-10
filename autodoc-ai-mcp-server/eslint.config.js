@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   files: ["**/*.js", "**/*.ts"],
   languageOptions: {
     ecmaVersion: 2021,
