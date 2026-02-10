@@ -140,6 +140,39 @@ async function postPRCommentIfNew(prNumber, body) {
   console.log('Posted automated review comment to PR #' + prNumber);
 }
 
+// Helper to get changed file diffs
+async function getChangedFilesWithDiffs(prNumber) {
+  const { data } = await octokit.pulls.listFiles({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    pull_number: prNumber,
+  });
+  return data.map(f => ({ filename: f.filename.replace(/^autodoc-ai-mcp-server\//, ''), diff: f.patch || '' }));
+}
+
+// AI review based on diffs
+async function generateAIReviewWithDiffs(prNumber) {
+  try {
+    const filesWithDiffs = await getChangedFilesWithDiffs(prNumber);
+    const diffs = filesWithDiffs.map(f => `File: ${f.filename}\n${f.diff}`).join('\n\n');
+    if (!OPENAI_API_KEY) return 'No AI review: missing API key.';
+    const { OpenAI } = await import('openai');
+    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+    const aiResponse = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        { role: 'system', content: 'You are an expert code reviewer. Review the following code diffs and provide suggestions.' },
+        { role: 'user', content: diffs }
+      ],
+      max_tokens: 500
+    });
+    return aiResponse.choices[0].message.content.trim();
+  } catch (e) {
+    console.error(e);
+    return 'AI review generation failed.';
+  }
+}
+
 // --- Main Logic ---
 
 async function main() {
@@ -162,6 +195,8 @@ async function main() {
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
   const testCoverage = runTestCoverage();
+  // AI review based on diffs
+  const aiReview = await generateAIReviewWithDiffs(prNumber);
 
   // Summary logic
   let summary = 'All checks passed ✅';
@@ -197,6 +232,9 @@ ${auditResult}
 
 #### 💡 **MCP Suggestions**
 ${mcpOutput}
+
+#### 🤖 **AI Review Suggestions (Diff-based)**
+${aiReview}
 
 ---`;
 
