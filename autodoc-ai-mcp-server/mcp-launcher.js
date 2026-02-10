@@ -640,24 +640,28 @@ async function main() {
           console.log('MCP: No files changed in this PR.');
           process.exit(0);
         }
-        const fsSync = require('fs');
-        console.log('MCP Suggestions:');
-        for (const file of changedFiles) {
-          let suggestion = `- Review ${file} for improvements.`;
-          try {
-            const content = fsSync.readFileSync(file, 'utf-8');
-            if (/TODO|FIXME/i.test(content)) {
-              suggestion += ' Contains TODO/FIXME comments.';
+        // Use ES module import for fs
+        // fsSync is already imported as fsSync from 'fs/promises' at the top, but we need sync version
+        import('fs').then(fsSync => {
+          console.log('MCP Suggestions:');
+          for (const file of changedFiles) {
+            let suggestion = `- Review ${file} for improvements.`;
+            try {
+              const content = fsSync.readFileSync(file, 'utf-8');
+              if (/TODO|FIXME/i.test(content)) {
+                suggestion += ' Contains TODO/FIXME comments.';
+              }
+              if (/console\.log/i.test(content)) {
+                suggestion += ' Contains console.log statements.';
+              }
+            } catch (err) {
+              suggestion += ' (Could not read file contents)';
             }
-            if (/console\.log/i.test(content)) {
-              suggestion += ' Contains console.log statements.';
-            }
-          } catch (err) {
-            suggestion += ' (Could not read file contents)';
+            console.log(suggestion);
           }
-          console.log(suggestion);
-        }
-        process.exit(0);
+          process.exit(0);
+        });
+        break;
       }
 
       default:
