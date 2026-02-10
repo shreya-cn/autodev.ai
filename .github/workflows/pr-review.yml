@@ -28,7 +28,6 @@ jobs:
         run: |
           cd autodoc-ai-mcp-server
           npm install
-          # This creates the dist/ folder required for MCP to start
+          # Generates the dist/ folder so the MCP server can actually start
           npm run build 
-          # Pass the PR number to the script
           node pr-reviewer.js ${{ github.event.pull_request.number }}

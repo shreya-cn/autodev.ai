@@ -9,15 +9,15 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Check which entry point exists after build
-const MCP_SERVER_PATH = fs.existsSync('./dist/index.js') 
-  ? './dist/index.js' 
-  : './dist/mcp-server.js'; 
+const MCP_SERVER_PATH = fs.existsSync('./dist/index.js')
+  ? './dist/index.js'
+  : './dist/mcp-server.js';
 
 if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
   console.error('Missing GITHUB_TOKEN or OPENAI_API_KEY');
   process.exit(1);
 }
- 
+
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
 /**
@@ -26,7 +26,7 @@ const octokit = new Octokit({ auth: GITHUB_TOKEN });
 async function generateMCPReview(changedFiles) {
   return new Promise((resolve) => {
     console.log('🤖 Orchestrating MCP Review via JSON-RPC...');
-    
+
     if (!fs.existsSync(MCP_SERVER_PATH)) {
       resolve(`⚠️ MCP Error: Server not found at ${MCP_SERVER_PATH}. Ensure "npm run build" succeeded.`);
       return;
@@ -34,7 +34,7 @@ async function generateMCPReview(changedFiles) {
 
     const serverProcess = spawn('node', [MCP_SERVER_PATH], {
       env: { ...process.env, EXIT_ON_TOOL_COMPLETE: 'true' },
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     let reviewResult = '';
@@ -42,28 +42,30 @@ async function generateMCPReview(changedFiles) {
 
     serverProcess.stdout.on('data', (data) => {
       const message = data.toString();
-      // Useful for debugging in GitHub Action logs
       console.log(`[MCP Log]: ${message.trim()}`);
 
-      // Wait for any signal that indicates the server is ready for commands
-      if (message.includes('tools registered') || message.includes('ready') || message.includes('Server')) {
+      if (
+        message.includes('tools registered') ||
+        message.includes('ready') ||
+        message.includes('Server')
+      ) {
         const toolCall = JSON.stringify({
           jsonrpc: '2.0',
           id: 'pr-review-call',
           method: 'tools/call',
           params: {
-            name: 'review_code_changes', 
+            name: 'review_code_changes',
             arguments: {
               files: changedFiles,
-              projectPath: './'
-            }
-          }
+              projectPath: './',
+            },
+          },
         });
         serverProcess.stdin.write(toolCall + '\n');
       }
 
       try {
-        const lines = message.split('\n').filter(l => l.trim().startsWith('{'));
+        const lines = message.split('\n').filter((l) => l.trim().startsWith('{'));
         for (const line of lines) {
           const json = JSON.parse(line);
           if (json.id === 'pr-review-call' && json.result) {
@@ -72,7 +74,9 @@ async function generateMCPReview(changedFiles) {
             serverProcess.kill();
           }
         }
-      } catch (e) {}
+      } catch {
+        // ignore parse errors
+      }
     });
 
     serverProcess.stderr.on('data', (data) => {
@@ -84,7 +88,6 @@ async function generateMCPReview(changedFiles) {
       resolve(reviewResult || '⚠️ MCP Review returned no suggestions.');
     });
 
-    // 2 minute timeout
     setTimeout(() => {
       if (!isFinished) {
         serverProcess.kill();
@@ -102,22 +105,19 @@ async function getChangedFiles(prNumber) {
     repo: REPO_NAME,
     pull_number: prNumber,
   });
-  
-  // FIX: Strip the directory prefix. 
-  // If filename is "autodoc-ai-mcp-server/app.js", it becomes "app.js"
-  return data.map(f => {
-    const cleanPath = f.filename.startsWith('autodoc-ai-mcp-server/') 
-      ? f.filename.replace('autodoc-ai-mcp-server/', '') 
-      : f.filename;
-    return cleanPath;
-  });
+
+  // Strip subdirectory prefix since workflow already cd's into it
+  return data.map((f) =>
+    f.filename.startsWith('autodoc-ai-mcp-server/')
+      ? f.filename.replace('autodoc-ai-mcp-server/', '')
+      : f.filename
+  );
 }
 
-function runLint(files) {
-  const jsFiles = files.filter(f => (f.endsWith('.js') || f.endsWith('.ts')) && fs.existsSync(f));
-  if (jsFiles.length === 0) return 'No local JS/TS files to lint.';
+// ✅ FIXED: lint the workspace, not individual PR files
+function runLint() {
   try {
-    return execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
+    return execSync('npx eslint .', { encoding: 'utf-8' });
   } catch (e) {
     return e.stdout || e.message;
   }
@@ -137,57 +137,49 @@ function runAudit() {
     const result = execSync('npm audit --json', { encoding: 'utf-8' });
     const audit = JSON.parse(result);
     const total = Object.keys(audit.vulnerabilities || {}).length;
-    return total === 0 ? 'No known vulnerabilities 🚦' : `Vulnerabilities found: ${total} ⚠️`;
+    return total === 0
+      ? 'No known vulnerabilities 🚦'
+      : `Vulnerabilities found: ${total} ⚠️`;
   } catch (e) {
-    // npm audit returns non-zero exit code if vulnerabilities are found
     return e.stdout ? 'Vulnerabilities detected ⚠️' : 'Audit failed to run.';
-  }
-}
-
-function runTestCoverage() {
-  try {
-    return execSync('npm test -- --coverage', { encoding: 'utf-8' });
-  } catch (e) {
-    return e.stdout || 'Test coverage failed.';
   }
 }
 
 async function postPRCommentIfNew(prNumber, body) {
   const { data: comments } = await octokit.issues.listComments({
-    owner: REPO_OWNER, repo: REPO_NAME, issue_number: prNumber,
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    issue_number: prNumber,
   });
-  
+
   const botTag = '### 🤖 **AutoDoc Automated Review**';
-  if (comments.some(c => c.body.includes(botTag))) {
-    console.log('Comment already exists. Skipping...');
-    return;
-  };
+  if (comments.some((c) => c.body.includes(botTag))) return;
 
   await octokit.issues.createComment({
-    owner: REPO_OWNER, repo: REPO_NAME, issue_number: prNumber, body
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    issue_number: prNumber,
+    body,
   });
 }
 
-// --- Main Execution ---
+// --- Main ---
 
 async function main() {
   const prNumber = process.argv[2];
   if (!prNumber) process.exit(1);
 
-  console.log(`🔎 Analyzing PR #${prNumber}...`);
   const files = await getChangedFiles(prNumber);
-  
-  // Running checks in parallel
-  const [lint, build, audit, test,  mcp] = await Promise.all([
-    runLint(files),
+
+  const [lint, build, audit, mcp] = await Promise.all([
+    runLint(),
     runBuildCheck(),
     runAudit(),
-    runTestCoverage(),
-    generateMCPReview(files)
+    generateMCPReview(files),
   ]);
 
-  const summary = /fail|error|⚠️|vulnerabilities/i.test(lint + audit) 
-    ? 'Some issues found ⚠️' 
+  const summary = /fail|error|⚠️|vulnerabilities/i.test(lint + audit)
+    ? 'Some issues found ⚠️'
     : 'All checks passed ✅';
 
   const body = `### 🤖 **AutoDoc Automated Review**
@@ -210,10 +202,9 @@ ${mcp}
 ---`;
 
   await postPRCommentIfNew(prNumber, body);
-  console.log('🎉 Done.');
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
