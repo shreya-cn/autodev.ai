@@ -1,17 +1,16 @@
 import fs from 'fs';
 import { execSync, spawn } from 'child_process';
 import { Octokit } from '@octokit/rest';
-import { OpenAI } from 'openai';
 import path from 'path';
 
-// Environment Variables
-const REPO_OWNER = process.env.REPO_OWNER || 'your-org';
-const REPO_NAME = process.env.REPO_NAME || 'your-repo';
+// --- Environment Variables ---
+const REPO_OWNER = process.env.REPO_OWNER || 'shreya-cn';
+const REPO_NAME = process.env.REPO_NAME || 'autodev.ai';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4';
-// Path to your compiled MCP server
-const MCP_SERVER_PATH = './dist/mcp-server.js'; 
+
+// Path to your compiled MCP server (Updated to index.js based on your error logs)
+const MCP_SERVER_PATH = './dist/index.js'; 
 
 if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
   console.error('Missing GITHUB_TOKEN or OPENAI_API_KEY');
@@ -21,17 +20,20 @@ if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
 /**
- * NEW: Orchestrates the MCP Server to generate a review
+ * Orchestrates the MCP Server to generate a review via JSON-RPC
  */
 async function generateMCPReview(changedFiles) {
   return new Promise((resolve) => {
     console.log('🤖 Orchestrating MCP Review via JSON-RPC...');
     
+    // Check if server file exists before spawning
+    if (!fs.existsSync(MCP_SERVER_PATH)) {
+      resolve(`⚠️ MCP Error: Server file not found at ${MCP_SERVER_PATH}. Did you run npm build?`);
+      return;
+    }
+
     const serverProcess = spawn('node', [MCP_SERVER_PATH], {
-      env: { 
-        ...process.env, 
-        EXIT_ON_TOOL_COMPLETE: 'true' 
-      },
+      env: { ...process.env, EXIT_ON_TOOL_COMPLETE: 'true' },
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
@@ -40,25 +42,26 @@ async function generateMCPReview(changedFiles) {
 
     serverProcess.stdout.on('data', (data) => {
       const message = data.toString();
-      
-      // 1. Detect if tools are registered (the "Ready" signal)
-      if (message.includes('tools registered')) {
+      console.log(`[MCP Debug]: ${message.trim()}`); // Helpful for CI logs
+
+      // 1. Detect "Ready" signal. Adjust string if your server prints something else
+      if (message.includes('tools registered') || message.includes('ready')) {
         const toolCall = JSON.stringify({
           jsonrpc: '2.0',
           id: 'pr-review-call',
           method: 'tools/call',
           params: {
-            name: 'review_code_changes', // Ensure this tool name matches your server.js
+            name: 'review_code_changes', 
             arguments: {
               files: changedFiles,
-              projectPath: process.env.MICROSERVICE_PATH || './'
+              projectPath: './'
             }
           }
         });
         serverProcess.stdin.write(toolCall + '\n');
       }
 
-      // 2. Parse the result from the JSON-RPC response
+      // 2. Parse JSON-RPC response
       try {
         const lines = message.split('\n').filter(l => l.trim().startsWith('{'));
         for (const line of lines) {
@@ -69,19 +72,18 @@ async function generateMCPReview(changedFiles) {
             serverProcess.kill();
           }
         }
-      } catch (e) { /* Non-JSON log line */ }
+      } catch (e) { /* Ignore non-JSON logs */ }
     });
 
     serverProcess.stderr.on('data', (data) => {
-      const err = data.toString();
-      if (err.includes('Error')) console.error(`[MCP Server]: ${err.trim()}`);
+      console.error(`[MCP Server Error]: ${data.toString().trim()}`);
     });
 
     serverProcess.on('close', () => {
       resolve(reviewResult || '⚠️ MCP Review returned no suggestions.');
     });
 
-    // Timeout safety
+    // 2-minute timeout
     setTimeout(() => {
       if (!isFinished) {
         serverProcess.kill();
@@ -91,7 +93,7 @@ async function generateMCPReview(changedFiles) {
   });
 }
 
-// --- Original Helper Functions ---
+// --- Helper Functions ---
 
 async function getChangedFiles(prNumber) {
   const { data } = await octokit.pulls.listFiles({
@@ -99,13 +101,15 @@ async function getChangedFiles(prNumber) {
     repo: REPO_NAME,
     pull_number: prNumber,
   });
-  return data.map(f => f.filename);
+  // FIX: Strip the directory prefix so ESLint and the MCP server find the files locally
+  return data.map(f => f.filename.replace(/^autodoc-ai-mcp-server\//, ''));
 }
 
 function runLint(files) {
   const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts'));
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
   try {
+    // Files are now correctly pathed relative to current dir
     return execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
   } catch (e) {
     return e.stdout || e.message;
@@ -128,7 +132,7 @@ function runAudit() {
     const total = Object.keys(audit.vulnerabilities || {}).length;
     return total === 0 ? 'No known vulnerabilities 🚦' : `Vulnerabilities found: ${total} ⚠️`;
   } catch (e) {
-    return 'Audit failed or vulnerabilities detected.';
+    return 'Audit found vulnerabilities or failed.';
   }
 }
 
@@ -136,21 +140,20 @@ function runTestCoverage() {
   try {
     return execSync('npm test -- --coverage', { encoding: 'utf-8' });
   } catch (e) {
-    return e.stdout || 'Test coverage failed.';
+    return e.stdout || 'Test coverage execution failed.';
   }
 }
 
 async function postPRCommentIfNew(prNumber, body) {
-  // Logic to prevent duplicate comments
   const { data: comments } = await octokit.issues.listComments({
     owner: REPO_OWNER,
     repo: REPO_NAME,
     issue_number: prNumber,
   });
   
-  const alreadyPosted = comments.some(c => c.body.includes('### 🤖 **AutoDoc Automated Review**'));
-  if (alreadyPosted) {
-    console.log('Comment already exists.');
+  const botTag = '### 🤖 **AutoDoc Automated Review**';
+  if (comments.some(c => c.body.includes(botTag))) {
+    console.log('Bot comment already exists. Skipping...');
     return;
   }
 
@@ -162,7 +165,7 @@ async function postPRCommentIfNew(prNumber, body) {
   });
 }
 
-// --- Main Logic ---
+// --- Main Execution ---
 
 async function main() {
   const prNumber = process.argv[2];
@@ -171,19 +174,20 @@ async function main() {
     process.exit(1);
   }
 
+  console.log(`🔎 Fetching changes for PR #${prNumber}...`);
   const files = await getChangedFiles(prNumber);
   
-  // Parallel execution for speed
+  console.log('🛠️ Running local checks (Lint, Build, Audit)...');
   const [lintResult, buildResult, auditResult, testCoverage, mcpReview] = await Promise.all([
     runLint(files),
     runBuildCheck(),
     runAudit(),
     runTestCoverage(),
-    generateMCPReview(files) // Now using the orchestrated tool call
+    generateMCPReview(files)
   ]);
 
   let summary = 'All checks passed ✅';
-  if (/fail|error|⚠️|vulnerabilities/i.test(lintResult + buildResult + auditResult)) {
+  if (/fail|error|⚠️|vulnerabilities/i.test(lintResult + auditResult)) {
     summary = 'Some issues found ⚠️';
   }
 
@@ -211,15 +215,16 @@ ${testCoverage}
 #### 🛡️ **Vulnerability Check**
 ${auditResult}
 
-#### 💡 **MCP Orchestrated Suggestions**
+#### 💡 **MCP AI Review Suggestions**
 ${mcpReview}
 
 ---`;
 
   await postPRCommentIfNew(prNumber, commentBody);
+  console.log('🎉 PR Review process completed.');
 }
 
 main().catch(err => {
-  console.error(err);
+  console.error('Fatal Error:', err);
   process.exit(1);
 });
