@@ -33,59 +33,59 @@ async function generateMCPReview() {
     }
 
     const serverProcess = spawn('node', [MCP_SERVER_PATH], {
-      env: { ...process.env, EXIT_ON_TOOL_COMPLETE: 'true' },
+      env: { ...process.env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     let reviewResult = '';
-    let toolSent = false;
     let finished = false;
+    let toolSent = false;
 
     function handleMCPOutput(data) {
-  const message = data.toString();
-  console.log(`[MCP]: ${message.trim()}`);
+      const message = data.toString();
+      console.log(`[MCP]: ${message.trim()}`);
 
-  // 🔑 Send tool call once tools are registered (stderr OR stdout)
-  if (!toolSent && message.includes('tools registered')) {
-    toolSent = true;
+      // Capture JSON-RPC responses
+      try {
+        const lines = message
+          .split('\n')
+          .filter((l) => l.trim().startsWith('{'));
 
-    const toolCall = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 'pr-review-call',
-      method: 'tools/call',
-      params: {
-        name: 'full_pipeline',
-        arguments: {
-          projectPath: './',
-        },
-      },
-    });
-
-    serverProcess.stdin.write(toolCall + '\n');
-  }
-
-  // 🧠 Capture JSON-RPC response
-  try {
-    const lines = message
-      .split('\n')
-      .filter((l) => l.trim().startsWith('{'));
-
-    for (const line of lines) {
-      const json = JSON.parse(line);
-      if (json.id === 'pr-review-call' && json.result) {
-        reviewResult = json.result.content?.[0]?.text || '';
-        finished = true;
-        serverProcess.kill();
+        for (const line of lines) {
+          const json = JSON.parse(line);
+          if (json.id === 'pr-review-call' && json.result) {
+            reviewResult = json.result.content?.[0]?.text || '';
+            finished = true;
+            serverProcess.kill();
+          }
+        }
+      } catch {
+        // ignore partial / non-JSON output
       }
     }
-  } catch {
-    // ignore partial JSON
-  }
-}
 
-serverProcess.stdout.on('data', handleMCPOutput);
-serverProcess.stderr.on('data', handleMCPOutput);
+    serverProcess.stdout.on('data', handleMCPOutput);
+    serverProcess.stderr.on('data', handleMCPOutput);
 
+    // 🚀 Send tool call after MCP has time to boot (do NOT wait on logs)
+    setTimeout(() => {
+      if (toolSent || finished) return;
+      toolSent = true;
+
+      const toolCall = JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'pr-review-call',
+        method: 'tools/call',
+        params: {
+          name: 'full_pipeline',
+          arguments: {
+            projectPath: './',
+          },
+        },
+      });
+
+      serverProcess.stdin.write(toolCall + '\n');
+    }, 500);
 
     serverProcess.on('close', () => {
       resolve(reviewResult || '⚠️ MCP review returned no suggestions.');
