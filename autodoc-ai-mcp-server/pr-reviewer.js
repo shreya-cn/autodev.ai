@@ -33,7 +33,9 @@ function runLint(files) {
   const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts'));
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
   try {
-    const result = require('child_process').execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
+    // Use dynamic import for child_process to support both CommonJS and ESM
+    const { execSync } = require('child_process');
+    const result = execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
     return result || 'Lint check passed. No issues found.';
   } catch (e) {
     return e.stdout || e.message;
@@ -42,7 +44,8 @@ function runLint(files) {
 
 function runBuildCheck() {
   try {
-    require('child_process').execSync('npm run build', { encoding: 'utf-8' });
+    const { execSync } = require('child_process');
+    execSync('npm run build', { encoding: 'utf-8' });
     return 'Build succeeded.';
   } catch (e) {
     return e.stdout || e.message;
@@ -51,7 +54,8 @@ function runBuildCheck() {
 
 function runAudit() {
   try {
-    const result = require('child_process').execSync('npm audit --json', { encoding: 'utf-8' });
+    const { execSync } = require('child_process');
+    const result = execSync('npm audit --json', { encoding: 'utf-8' });
     return summarizeAudit(result);
   } catch (e) {
     // Try to parse and summarize audit output even on error
@@ -124,7 +128,8 @@ function summarizeAudit(auditJson) {
 
 function runTestCoverage() {
   try {
-    const result = require('child_process').execSync('npm test -- --coverage', { encoding: 'utf-8' });
+    const { execSync } = require('child_process');
+    const result = execSync('npm test -- --coverage', { encoding: 'utf-8' });
     return result;
   } catch (e) {
     return e.stdout || e.message;
