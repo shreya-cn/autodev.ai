@@ -4,13 +4,15 @@ import { Octokit } from '@octokit/rest';
 import path from 'path';
 
 // --- Environment Variables ---
-const REPO_OWNER = process.env.REPO_OWNER || 'shreya-cn';
-const REPO_NAME = process.env.REPO_NAME || 'autodev.ai';
+const REPO_OWNER = process.env.REPO_OWNER;
+const REPO_NAME = process.env.REPO_NAME;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Path to your compiled MCP server (Updated to index.js based on your error logs)
-const MCP_SERVER_PATH = './dist/index.js'; 
+// Robust path detection for the MCP server
+const MCP_SERVER_PATH = fs.existsSync('./dist/index.js') 
+  ? './dist/index.js' 
+  : './dist/mcp-server.js'; 
 
 if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
   console.error('Missing GITHUB_TOKEN or OPENAI_API_KEY');
@@ -20,15 +22,14 @@ if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
 /**
- * Orchestrates the MCP Server to generate a review via JSON-RPC
+ * Orchestrates the MCP Server via JSON-RPC
  */
 async function generateMCPReview(changedFiles) {
   return new Promise((resolve) => {
     console.log('🤖 Orchestrating MCP Review via JSON-RPC...');
     
-    // Check if server file exists before spawning
     if (!fs.existsSync(MCP_SERVER_PATH)) {
-      resolve(`⚠️ MCP Error: Server file not found at ${MCP_SERVER_PATH}. Did you run npm build?`);
+      resolve(`⚠️ MCP Error: Server not found at ${MCP_SERVER_PATH}. Verify build step.`);
       return;
     }
 
@@ -42,10 +43,10 @@ async function generateMCPReview(changedFiles) {
 
     serverProcess.stdout.on('data', (data) => {
       const message = data.toString();
-      console.log(`[MCP Debug]: ${message.trim()}`); // Helpful for CI logs
+      console.log(`[MCP Log]: ${message.trim()}`);
 
-      // 1. Detect "Ready" signal. Adjust string if your server prints something else
-      if (message.includes('tools registered') || message.includes('ready')) {
+      // Wait for any signal that indicates the server is up
+      if (message.includes('tools registered') || message.includes('ready') || message.includes('Server')) {
         const toolCall = JSON.stringify({
           jsonrpc: '2.0',
           id: 'pr-review-call',
@@ -61,7 +62,6 @@ async function generateMCPReview(changedFiles) {
         serverProcess.stdin.write(toolCall + '\n');
       }
 
-      // 2. Parse JSON-RPC response
       try {
         const lines = message.split('\n').filter(l => l.trim().startsWith('{'));
         for (const line of lines) {
@@ -72,18 +72,17 @@ async function generateMCPReview(changedFiles) {
             serverProcess.kill();
           }
         }
-      } catch (e) { /* Ignore non-JSON logs */ }
+      } catch (e) {}
     });
 
     serverProcess.stderr.on('data', (data) => {
-      console.error(`[MCP Server Error]: ${data.toString().trim()}`);
+      console.error(`[MCP Error]: ${data.toString().trim()}`);
     });
 
     serverProcess.on('close', () => {
       resolve(reviewResult || '⚠️ MCP Review returned no suggestions.');
     });
 
-    // 2-minute timeout
     setTimeout(() => {
       if (!isFinished) {
         serverProcess.kill();
@@ -101,15 +100,18 @@ async function getChangedFiles(prNumber) {
     repo: REPO_NAME,
     pull_number: prNumber,
   });
-  // FIX: Strip the directory prefix so ESLint and the MCP server find the files locally
-  return data.map(f => f.filename.replace(/^autodoc-ai-mcp-server\//, ''));
+  
+  // STRIP PREFIX: This fixes the "No files matching" ESLint error
+  return data.map(f => f.filename.startsWith('autodoc-ai-mcp-server/') 
+    ? f.filename.replace('autodoc-ai-mcp-server/', '') 
+    : f.filename
+  );
 }
 
 function runLint(files) {
   const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts'));
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
   try {
-    // Files are now correctly pathed relative to current dir
     return execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
   } catch (e) {
     return e.stdout || e.message;
@@ -118,6 +120,7 @@ function runLint(files) {
 
 function runBuildCheck() {
   try {
+    // This is a local check to ensure the project being reviewed builds
     execSync('npm run build', { encoding: 'utf-8' });
     return 'Build succeeded.';
   } catch (e) {
@@ -132,7 +135,7 @@ function runAudit() {
     const total = Object.keys(audit.vulnerabilities || {}).length;
     return total === 0 ? 'No known vulnerabilities 🚦' : `Vulnerabilities found: ${total} ⚠️`;
   } catch (e) {
-    return 'Audit found vulnerabilities or failed.';
+    return 'Audit detected vulnerabilities or failed.';
   }
 }
 
@@ -140,7 +143,7 @@ function runTestCoverage() {
   try {
     return execSync('npm test -- --coverage', { encoding: 'utf-8' });
   } catch (e) {
-    return e.stdout || 'Test coverage execution failed.';
+    return e.stdout || 'Test coverage failed.';
   }
 }
 
@@ -152,33 +155,22 @@ async function postPRCommentIfNew(prNumber, body) {
   });
   
   const botTag = '### 🤖 **AutoDoc Automated Review**';
-  if (comments.some(c => c.body.includes(botTag))) {
-    console.log('Bot comment already exists. Skipping...');
-    return;
-  }
+  if (comments.some(c => c.body.includes(botTag))) return;
 
   await octokit.issues.createComment({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    issue_number: prNumber,
-    body,
+    owner: REPO_OWNER, repo: REPO_NAME, issue_number: prNumber, body
   });
 }
 
-// --- Main Execution ---
+// --- Main Logic ---
 
 async function main() {
   const prNumber = process.argv[2];
-  if (!prNumber) {
-    console.error('Usage: node pr-reviewer.js <PR_NUMBER>');
-    process.exit(1);
-  }
+  if (!prNumber) process.exit(1);
 
-  console.log(`🔎 Fetching changes for PR #${prNumber}...`);
   const files = await getChangedFiles(prNumber);
   
-  console.log('🛠️ Running local checks (Lint, Build, Audit)...');
-  const [lintResult, buildResult, auditResult, testCoverage, mcpReview] = await Promise.all([
+  const [lint, build, audit, test, mcp] = await Promise.all([
     runLint(files),
     runBuildCheck(),
     runAudit(),
@@ -186,45 +178,37 @@ async function main() {
     generateMCPReview(files)
   ]);
 
-  let summary = 'All checks passed ✅';
-  if (/fail|error|⚠️|vulnerabilities/i.test(lintResult + auditResult)) {
-    summary = 'Some issues found ⚠️';
-  }
+  const summary = /fail|error|⚠️|vulnerabilities/i.test(lint + audit) 
+    ? 'Some issues found ⚠️' 
+    : 'All checks passed ✅';
 
-  const commentBody = `### 🤖 **AutoDoc Automated Review**
+  const body = `### 🤖 **AutoDoc Automated Review**
 
 **${summary}**
 
 ---
-
 #### 🧹 **Lint Results**
 \`\`\`
-${lintResult}
+${lint}
 \`\`\`
-
 #### 🏗️ **Build Results**
 \`\`\`
-${buildResult}
+${build}
 \`\`\`
-
 #### 🧪 **Test Coverage**
 \`\`\`
-${testCoverage}
+${test}
 \`\`\`
-
 #### 🛡️ **Vulnerability Check**
-${auditResult}
-
-#### 💡 **MCP AI Review Suggestions**
-${mcpReview}
-
+${audit}
+#### 💡 **MCP AI Review**
+${mcp}
 ---`;
 
-  await postPRCommentIfNew(prNumber, commentBody);
-  console.log('🎉 PR Review process completed.');
+  await postPRCommentIfNew(prNumber, body);
 }
 
 main().catch(err => {
-  console.error('Fatal Error:', err);
+  console.error(err);
   process.exit(1);
 });
