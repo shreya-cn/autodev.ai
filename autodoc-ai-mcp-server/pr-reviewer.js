@@ -143,21 +143,7 @@ async function postPRCommentIfNew(prNumber, body) {
 }
 
 
-async function generateMCPReview(changedFiles) {
-  try {
-    const args = changedFiles.map(f => `"${f}"`).join(' ');
-    const result = execSync(
-      `node ./mcp-reviewer.js review ${args}`,
-      { encoding: 'utf-8' }
-    );
-    return result.trim();
-  } catch (e) {
-    console.error(e);
-    return 'MCP review generation failed.';
-  }
-}
-
-async function getChangedFilesWithDiffs(prNumber) {
+async function getChangedFiles(prNumber) {
   const { data } = await octokit.pulls.listFiles({
     owner: REPO_OWNER,
     repo: REPO_NAME,
@@ -167,9 +153,9 @@ async function getChangedFilesWithDiffs(prNumber) {
   return data.map(f => ({ filename: f.filename.replace(/^autodoc-ai-mcp-server\//, ''), diff: f.patch || '' }));
 }
 
-async function generateMCPReviewWithDiffs(prNumber) {
+async function generateReview(prNumber) {
   try {
-    const filesWithDiffs = await getChangedFilesWithDiffs(prNumber);
+    const filesWithDiffs = await getChangedFiles(prNumber);
     const diffs = filesWithDiffs.map(f => `File: ${f.filename}\n${f.diff}`).join('\n\n');
     // Send diffs to MCP review (simulate local call)
     // If MCP review expects file paths, update MCP to accept diffs
@@ -214,7 +200,7 @@ async function main() {
   const auditResult = runAudit();
   const testCoverage = runTestCoverage();
   // Use diff-based AI review
-  const mcpReview = await generateMCPReviewWithDiffs(prNumber);
+  const Review = await generateReview(prNumber);
 
   // Summary logic
   let summary = 'All checks passed ✅';
@@ -228,7 +214,7 @@ async function main() {
     summary = 'Some issues found ⚠️';
   }
 
-  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n#### 💡 **MCP Suggestions**\n${mcpReview}\n\n---`;
+  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n#### 💡 **MCP Suggestions**\n${Review}\n\n---`;
 
   await postPRCommentIfNew(prNumber, commentBody);
 }
