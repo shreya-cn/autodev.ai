@@ -80,6 +80,8 @@ export default function SprintPlanning() {
   const [data, setData] = useState<SprintPlanningData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+  const [triggering, setTriggering] = useState(false);
+  const [triggerResult, setTriggerResult] = useState('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -104,6 +106,24 @@ export default function SprintPlanning() {
       console.error('Error fetching sprint data:', error);
       setLoading(false);
     }
+  };
+
+  const runLLMJiraWorkflow = async () => {
+    setTriggering(true);
+    setTriggerResult('');
+    try {
+      const res = await fetch('/api/sprint-planning/trigger-llm-jira-workflow', {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setTriggerResult('Workflow triggered successfully!');
+      } else {
+        setTriggerResult('Failed to trigger workflow.');
+      }
+    } catch (err) {
+      setTriggerResult('Error triggering workflow.');
+    }
+    setTriggering(false);
   };
 
   if (!session) {
@@ -162,6 +182,20 @@ export default function SprintPlanning() {
           <p className="text-sm md:text-base lg:text-lg xl:text-xl text-gray-300 leading-relaxed max-w-4xl">
             AI-powered sprint composition and capacity analysis
           </p>
+        </div>
+
+        {/* Trigger Button */}
+        <div className="mb-6">
+          <button
+            className="bg-primary text-white font-bold py-2 px-4 rounded shadow hover:bg-green-700 transition disabled:opacity-50"
+            onClick={runLLMJiraWorkflow}
+            disabled={triggering}
+          >
+            {triggering ? 'Triggering...' : 'Run Scheduled LLM Jira Automation'}
+          </button>
+          {triggerResult && (
+            <div className="mt-2 text-sm text-dark">{triggerResult}</div>
+          )}
         </div>
 
         {/* Metrics Cards */}
@@ -274,9 +308,9 @@ export default function SprintPlanning() {
 
               {/* Workload Optimization */}
               {data?.recommendations?.workload_optimization && (
-                <p className="text-sm text-gray-200 bg-white/5 p-3 rounded border border-white/10">
+                <div className="text-sm text-gray-200 bg-white/5 p-3 rounded border border-white/10">
                   <span className="font-semibold">Workload Optimization:</span> {data?.recommendations?.workload_optimization}
-                </p>
+                </div>
               )}
             </div>
 
