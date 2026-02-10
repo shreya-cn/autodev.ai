@@ -41,3 +41,9 @@ function divide(a, b) {
     }
     // Missing return statement
 }
+function divideTest(a, b) {
+    if (b === 0) {
+        // TODO: handle division by zero
+    }
+    // Missing return statement
+}
