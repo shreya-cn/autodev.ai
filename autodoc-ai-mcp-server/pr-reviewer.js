@@ -142,9 +142,11 @@ async function postPRCommentIfNew(prNumber, body) {
   console.log('Posted automated review comment to PR #' + prNumber);
 }
 
-async function generateMCPReview() {
+async function generateMCPReview(changedFiles) {
   try {
-    const result = execSync('node mcp-reviewer.js', { encoding: 'utf-8' });
+    // Use mcp-launcher.js review mode for MCP suggestions
+    const args = changedFiles.map(f => `'${f}'`).join(' ');
+    const result = execSync(`node mcp-launcher.js review ${args}`, { encoding: 'utf-8' });
     return result.trim();
   } catch (e) {
     return 'MCP review generation failed.';
@@ -175,7 +177,7 @@ async function main() {
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
   const testCoverage = runTestCoverage();
-  const mcpReview = await generateMCPReview();
+  const mcpReview = await generateMCPReview(files);
 
   // Summary logic
   let summary = 'All checks passed ✅';
