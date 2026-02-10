@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-JIRA_BASE_URL = os.getenv("CONFLUENCE_URL")
-JIRA_EMAIL = os.getenv("CONFLUENCE_USER")
-JIRA_API_TOKEN = os.getenv("CONFLUENCE_API_TOKEN")
+JIRA_BASE_URL = os.getenv("JIRA_BASE")
+JIRA_EMAIL = os.getenv("JIRA_EMAIL")
+JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN_SUPP")
 JIRA_PROJECT_KEY = os.getenv("CONFLUENCE_PROJECT_KEY")
 
 if not all([JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT_KEY]):

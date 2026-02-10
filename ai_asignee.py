@@ -16,21 +16,8 @@ JIRA_TOKEN = os.getenv("JIRA_API_TOKEN_SUPP")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 PROJECT_KEY = "SCRUM"
-
-HISTORICAL_ISSUES = [
-    "SCRUM-12",
-    "SCRUM-13",
-    "SCRUM-14",
-    "SCRUM-15",
-    "SCRUM-17",
-]
-
-# 👉 New issue to suggest assignee for
-NEW_ISSUE = {
-    "summary": "Fix login issue for OAuth users",
-    "description": "Google OAuth login fails after deployment",
-    "issue_type": "Bug"
-}
+DONE_STATUS = "Done"
+DONE_ISSUE_LIMIT = 50 
 
 # =========================
 # CLIENTS
@@ -41,6 +28,47 @@ openai_client = OpenAI(api_key=OPENAI_API_KEY)
 # =========================
 # JIRA HELPERS (SAFE APIs)
 # =========================
+def fetch_done_issue_keys(limit=DONE_ISSUE_LIMIT):
+    jql = (
+        f'project = {PROJECT_KEY} '
+        f'AND status = "{DONE_STATUS}" '
+        f'ORDER BY resolved DESC'
+    )
+
+    url = f"{JIRA_BASE}/rest/api/3/search/jql"
+
+    payload = {
+        "jql": jql,
+        "maxResults": limit,
+        "fields": [
+            "summary",
+            "description",
+            "issuetype",
+            "assignee"
+        ],
+    }
+
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+    r = requests.post(
+        url,
+        auth=auth,
+        headers=headers,
+        json=payload,
+    )
+
+    if r.status_code != 200:
+        print("Jira response:", r.status_code)
+        print(r.text)
+
+    r.raise_for_status()
+
+    data = r.json()
+    return [issue["key"] for issue in data.get("issues", [])]
+
 def fetch_issue(issue_key):
     url = f"{JIRA_BASE}/rest/api/3/issue/{issue_key}"
     params = {"expand": "changelog"}
@@ -121,30 +149,49 @@ Return ONLY JSON in this format:
   ]
 }}
 """
-    print("\n================ OPENAI PAYLOAD (DEBUG) ================\n")
-    print(prompt)
-    print("\n========================================================\n")
+    response = openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.2,
+        response_format={"type": "json_object"},
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    )
 
-    # OpenAI disabled
-    return None
+    raw = response.choices[0].message.content
+    print("\n===== RAW OPENAI RESPONSE =====\n")
+    print(raw)
+    print("\n===============================\n")
 
-#    response = openai_client.chat.completions.create(
-#        model="gpt-4o-mini",
-#        temperature=0.2,
-#        messages=[{"role": "user", "content": prompt}]
-#    )
+    return json.loads(raw)
 
-#    return json.loads(response.choices[0].message.content)
+# ======================
+# PUBLIC FUNCTION (IMPORT THIS)
+# ======================
+def suggest_jira_assignee(new_issue, history_limit=DONE_ISSUE_LIMIT):
+    done_issue_keys = fetch_done_issue_keys(limit=history_limit)
 
-# =========================
-# RUN
-# =========================
+    if not done_issue_keys:
+        raise RuntimeError("No Done issues found for assignee profiling")
+
+    profiles = build_profiles(done_issue_keys)
+    return suggest_assignee(new_issue, profiles)
+
+# ======================
+# RUN (CLI / DEBUG)
+# ======================
 if __name__ == "__main__":
-    print("Building assignee profiles...")
-    profiles = build_profiles(HISTORICAL_ISSUES)
+    NEW_ISSUE = {
+        "summary": "Fix login issue for OAuth users",
+        "description": "Google OAuth login fails after deployment",
+        "issue_type": "Bug"
+    }
 
-    print("Running AI suggestion...")
-    result = suggest_assignee(NEW_ISSUE, profiles)
+    print("Building assignee profiles from Done issues...")
+    result = suggest_jira_assignee(NEW_ISSUE)
 
     print("\n🎯 Suggested Assignees:\n")
     for i, r in enumerate(result["ranking"], start=1):
