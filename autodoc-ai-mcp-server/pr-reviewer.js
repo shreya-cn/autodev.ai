@@ -1,5 +1,4 @@
 import fs from 'fs';
-import { execSync } from 'child_process';
 import { Octokit } from '@octokit/rest';
 
 const REPO_OWNER = process.env.REPO_OWNER || 'your-org';
@@ -13,17 +12,12 @@ if (!GITHUB_TOKEN) {
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-// Utility to read MCP-generated documentation safely
-function getMcpOutput() {
-  try {
-    const path = 'mcp-doc-output.txt';
-    if (fs.existsSync(path)) {
-      return fs.readFileSync(path, 'utf-8');
-    }
-  } catch (e) {
-    console.warn('Could not read MCP output file:', e.message);
-  }
-  return '';
+// Read MCP-generated documentation or analysis (adjust the path as needed)
+let mcpOutput = '';
+try {
+  mcpOutput = fs.readFileSync('mcp-doc-output.txt', 'utf-8'); // Change filename as needed
+} catch (e) {
+  mcpOutput = '';
 }
 
 async function getChangedFiles(prNumber) {
@@ -32,72 +26,108 @@ async function getChangedFiles(prNumber) {
     repo: REPO_NAME,
     pull_number: prNumber,
   });
-  // Adjusting the regex to match your specific subdirectory if needed
   return data.map(f => f.filename.replace(/^autodoc-ai-mcp-server\//, ''));
 }
 
 function runLint(files) {
-  const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts') || f.endsWith('.jsx') || f.endsWith('.tsx'));
+  const jsFiles = files.filter(f => f.endsWith('.js') || f.endsWith('.ts'));
   if (jsFiles.length === 0) return 'No JS/TS files to lint.';
   try {
-    // Note: ensure eslint is in your devDependencies
-    const result = execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8', stdio: 'pipe' });
-    return result || 'Lint check passed. No issues found.';
+    const result = require('child_process').execSync(`npx eslint ${jsFiles.join(' ')}`, { encoding: 'utf-8' });
+    return result;
   } catch (e) {
-    return e.stdout || e.stderr || e.message;
+    return e.stdout || e.message;
   }
 }
 
 function runBuildCheck() {
   try {
-    execSync('npm run build', { encoding: 'utf-8', stdio: 'pipe' });
-    return 'Build succeeded. ✅';
+    require('child_process').execSync('npm run build', { encoding: 'utf-8' });
+    return 'Build succeeded.';
   } catch (e) {
-    return e.stdout || e.stderr || e.message;
+    return e.stdout || e.message;
+  }
+}
+
+function runAudit() {
+  try {
+    const result = require('child_process').execSync('npm audit --json', { encoding: 'utf-8' });
+    return summarizeAudit(result);
+  } catch (e) {
+    // Try to parse and summarize audit output even on error
+    if (e.stdout) {
+      return summarizeAudit(e.stdout);
+    }
+    return `Vulnerability check failed. Error: ${e.message}`;
   }
 }
 
 function summarizeAudit(auditJson) {
   try {
     const audit = JSON.parse(auditJson);
-    const vulns = audit.vulnerabilities || (audit.metadata && audit.metadata.vulnerabilities);
-    
-    if (!vulns) return 'No vulnerability data found.';
-    
-    const total = vulns.total !== undefined ? vulns.total : (vulns.low + vulns.moderate + vulns.high + vulns.critical);
-    if (total === 0) return 'No known vulnerabilities 🚦';
-
-    let details = '';
+    // New npm audit format (npm v7+)
     if (audit.vulnerabilities) {
-      Object.entries(audit.vulnerabilities).forEach(([pkg, info]) => {
-        details += `- **${pkg}** (${info.severity}): via ${Array.isArray(info.via) ? info.via.map(v => v.title || v).join(', ') : info.via}\n`;
-      });
+      const vulns = audit.vulnerabilities;
+      const names = Object.keys(vulns);
+      if (names.length === 0) return 'No known vulnerabilities 🚦';
+      let summary = '';
+      let total = 0;
+      const severityCount = { low: 0, moderate: 0, high: 0, critical: 0 };
+      let details = '';
+      for (const name of names) {
+        const v = vulns[name];
+        total++;
+        if (v.severity && severityCount[v.severity] !== undefined) {
+          severityCount[v.severity]++;
+        }
+        // List each vulnerability for this package
+        if (v.via && Array.isArray(v.via)) {
+          v.via.forEach((issue) => {
+            if (typeof issue === 'object') {
+              details += `- ${name} (${v.severity}): ${issue.title || issue.source || 'No title'}\n`;
+            } else {
+              details += `- ${name} (${v.severity}): ${issue}\n`;
+            }
+          });
+        } else if (v.via) {
+          details += `- ${name} (${v.severity}): ${v.via}\n`;
+        }
+      }
+      summary += `Vulnerabilities found: ${total} ⚠️\n`;
+      summary += `Severity: ` + Object.entries(severityCount).map(([sev, count]) => `${sev}: ${count}`).join(', ') + '\n';
+      summary += `\nVulnerable packages/details:\n${details}`;
+      return summary;
     }
-
-    return `Vulnerabilities found: ${total} ⚠️\n\n${details}`;
+    // Old npm audit format
+    if (audit.metadata && audit.metadata.vulnerabilities) {
+      const meta = audit.metadata.vulnerabilities;
+      const total = meta.total || (meta.low + meta.moderate + meta.high + meta.critical);
+      if (total === 0) return 'No known vulnerabilities 🚦';
+      let details = '';
+      if (audit.advisories) {
+        for (const id in audit.advisories) {
+          const adv = audit.advisories[id];
+          details += `- ${adv.module_name} (${adv.severity}): ${adv.title}\n`;
+        }
+      }
+      return `Vulnerabilities found: ${total} ⚠️\nSeverity: low: ${meta.low}, moderate: ${meta.moderate}, high: ${meta.high}, critical: ${meta.critical}\n\nVulnerable packages/details:\n${details}`;
+    }
+    // If error field present
+    if (audit.error) {
+      return `Vulnerability check failed: ${audit.error.summary || audit.error}`;
+    }
+    return `Vulnerability check: Unrecognized audit output. Raw: ${auditJson}`;
   } catch (err) {
-    return `Failed to parse audit output.`;
-  }
-}
-
-function runAudit() {
-  try {
-    const result = execSync('npm audit --json', { encoding: 'utf-8', stdio: 'pipe' });
-    return summarizeAudit(result);
-  } catch (e) {
-    // npm audit returns exit code 1 if vulnerabilities are found
-    if (e.stdout) return summarizeAudit(e.stdout);
-    return `Vulnerability check failed: ${e.message}`;
+    return `Vulnerability check failed. Could not parse audit output. Raw: ${auditJson}`;
   }
 }
 
 function runTestCoverage() {
   try {
-    // Adjust command based on your test runner (jest/vitest)
-    const result = execSync('npm test -- --coverage --watchAll=false', { encoding: 'utf-8', stdio: 'pipe' });
+    const result = require('child_process').execSync('npm test -- --coverage', { encoding: 'utf-8' });
     return result;
   } catch (e) {
-    return e.stdout || e.stderr || e.message;
+    return e.stdout || e.message;
   }
 }
 
@@ -111,17 +141,46 @@ async function getExistingComments(prNumber) {
   return data.map(c => c.body);
 }
 
-async function isSimilarComment(newBody, existingComments) {
-  const botHeader = '### 🤖 **AutoRev Automated Review**';
-  const botComments = existingComments.filter(c => c && c.startsWith(botHeader));
-  
+async function isSimilarComment(a, b) {
+  // Normalize: remove whitespace, collapse newlines, lowercase
   const norm = str => str.replace(/\s+/g, ' ').trim().toLowerCase();
-  const newNorm = norm(newBody);
-
-  for (const comment of botComments) {
-    if (norm(comment) === newNorm) return true;
+  const na = norm(a);
+  const nb = norm(b);
+  if (!na || !nb) return false;
+  // Simple similarity: percent of matching chars in the shorter string
+  const minLen = Math.min(na.length, nb.length);
+  let match = 0;
+  for (let i = 0; i < minLen; i++) {
+    if (na[i] === nb[i]) match++;
   }
-  return false;
+  const similarity = match / minLen;
+  return similarity > 0.9; // 90%+ similar
+}
+
+async function postPRCommentIfNew(prNumber, body) {
+  const existingComments = await getExistingComments(prNumber);
+  // Only compare to previous bot comments
+  const botComments = existingComments.filter(c => c && c.startsWith('### 🤖 **AutoDoc Automated Review**'));
+  for (const c of botComments) {
+    if (await isSimilarComment(c, body)) {
+      console.log('No new review comment needed (duplicate or near-duplicate detected).');
+      return;
+    }
+  }
+  await octokit.issues.createComment({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    issue_number: prNumber,
+    body,
+  });
+  console.log('Posted automated review comment to PR #' + prNumber);
+}
+
+async function generateMCPReview() {
+  if (!mcpOutput) {
+    return 'No MCP documentation or analysis available.';
+  }
+  return `#### 💡 **MCP Suggestions & Refactoring**\n${mcpOutput}`;
 }
 
 async function main() {
@@ -131,54 +190,41 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`🚀 Starting review for PR #${prNumber}...`);
-
   const files = await getChangedFiles(prNumber);
   const lintResult = runLint(files);
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
   const testCoverage = runTestCoverage();
-  const mcpOutput = getMcpOutput();
+  const mcpReview = await generateMCPReview();
 
+  // High-level summary logic
   let summary = 'All checks passed ✅';
-  const hasFailures = [lintResult, buildResult, testCoverage].some(res => /fail|error|✖/i.test(res));
-  const hasVulns = auditResult.includes('⚠️');
-
-  if (hasFailures || hasVulns) {
+  if (
+    (lintResult && !/^No JS\/TS files to lint\./.test(lintResult) && /error|fail|✖|problems?/i.test(lintResult)) ||
+    /fail|error|✖/i.test(buildResult) ||
+    /Vulnerabilities found: [1-9]/.test(auditResult) ||
+    /No MCP documentation|error|fail|problem|issue/i.test(mcpReview) ||
+    /FAIL|error|problem|issue|not\s*covered|\b0%\b/i.test(testCoverage)
+  ) {
     summary = 'Some issues found ⚠️';
   }
 
-  const commentBody = [
-    `### 🤖 **AutoRev Automated Review**`,
-    `**${summary}**`,
-    `---`,
-    `#### 🧹 **Lint Results**`,
-    `\`\`\`\n${lintResult}\n\`\`\``,
-    `#### 🏗️ **Build Results**`,
-    `\`\`\`\n${buildResult}\n\`\`\``,
-    `#### 🧪 **Test Coverage**`,
-    `\`\`\`\n${testCoverage.substring(0, 1000)}${testCoverage.length > 1000 ? '...' : ''}\n\`\`\``,
-    `#### 🛡️ **Vulnerability Check**`,
-    auditResult,
-    `---`,
-    mcpOutput ? `#### 💡 **MCP Suggestions**\n${mcpOutput}` : '_No MCP documentation generated for this pass._'
-  ].join('\n\n');
-
-  const existingComments = await getExistingComments(prNumber);
-  if (await isSimilarComment(commentBody, existingComments)) {
-    console.log('Skipping: Similar comment already exists.');
-  } else {
-    await octokit.issues.createComment({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      issue_number: prNumber,
-      body: commentBody,
-    });
-    console.log('✅ Comment posted successfully.');
+  // Try to extract accessibility/security notes from MCP output
+  let accessibilityNotes = '';
+  let securityNotes = '';
+  if (mcpReview.includes('Accessibility Notes:')) {
+    accessibilityNotes = mcpReview.split('Accessibility Notes:')[1].split(/\n|Security Notes:/)[0].trim();
   }
+  if (mcpReview.includes('Security Notes:')) {
+    securityNotes = mcpReview.split('Security Notes:')[1].split(/\n|$/)[0].trim();
+  }
+
+  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n${mcpReview}\n\n${accessibilityNotes ? '#### ♿ **Accessibility Notes**\n' + accessibilityNotes + '\n' : ''}${securityNotes ? '#### 🔒 **Security Notes**\n' + securityNotes + '\n' : ''}---`;
+
+  await postPRCommentIfNew(prNumber, commentBody);
 }
 
 main().catch(err => {
-  console.error('CRITICAL ERROR:', err);
+  console.error('Error in PR reviewer:', err);
   process.exit(1);
 });
