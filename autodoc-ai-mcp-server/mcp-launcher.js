@@ -640,9 +640,8 @@ async function main() {
           console.log('MCP: No files changed in this PR.');
           process.exit(0);
         }
-        // Use ES module import for fs
-        // fsSync is already imported as fsSync from 'fs/promises' at the top, but we need sync version
-        import('fs').then(fsSync => {
+        (async () => {
+          const fsSync = await import('fs');
           console.log('MCP Suggestions:');
           for (const file of changedFiles) {
             let suggestion = `- Review ${file} for improvements.`;
@@ -660,7 +659,7 @@ async function main() {
             console.log(suggestion);
           }
           process.exit(0);
-        });
+        })();
         break;
       }
 
