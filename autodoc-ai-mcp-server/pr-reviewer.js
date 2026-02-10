@@ -1,7 +1,6 @@
 import fs from 'fs';
 import { execSync } from 'child_process';
 import { Octokit } from '@octokit/rest';
-import { OpenAI } from 'openai';
 
 // Environment Variables
 const REPO_OWNER = process.env.REPO_OWNER || 'your-org';
@@ -16,7 +15,6 @@ if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
 }
  
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // --- Helper Functions ---
 
@@ -142,21 +140,24 @@ async function postPRCommentIfNew(prNumber, body) {
   console.log('Posted automated review comment to PR #' + prNumber);
 }
 
-
-async function getChangedFiles(prNumber) {
+// Helper to get changed file diffs
+async function getChangedFilesWithDiffs(prNumber) {
   const { data } = await octokit.pulls.listFiles({
     owner: REPO_OWNER,
     repo: REPO_NAME,
     pull_number: prNumber,
   });
-  // Each file: { filename, patch }
   return data.map(f => ({ filename: f.filename.replace(/^autodoc-ai-mcp-server\//, ''), diff: f.patch || '' }));
 }
 
-async function generateReview(prNumber) {
+// AI review based on diffs
+async function generateAIReviewWithDiffs(prNumber) {
   try {
-    const filesWithDiffs = await getChangedFiles(prNumber);
+    const filesWithDiffs = await getChangedFilesWithDiffs(prNumber);
     const diffs = filesWithDiffs.map(f => `File: ${f.filename}\n${f.diff}`).join('\n\n');
+    if (!OPENAI_API_KEY) return 'No AI review: missing API key.';
+    const { OpenAI } = await import('openai');
+    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
     const aiResponse = await openai.chat.completions.create({
       model: OPENAI_MODEL,
       messages: [
@@ -172,16 +173,6 @@ async function generateReview(prNumber) {
   }
 }
 
-function extractKeyIssues(output, section) {
-  // Simple extraction for common error/warning patterns
-  const lines = output.split('\n');
-  const issues = lines.filter(line =>
-    /error|fail|warning|ReferenceError|SyntaxError|vulnerab|critical|high|moderate|not found|missing/i.test(line)
-  );
-  if (issues.length === 0) return `No major issues detected in ${section}.`;
-  return `Key issues in ${section}:\n` + issues.join('\n');
-}
-
 // --- Main Logic ---
 
 async function main() {
@@ -191,27 +182,61 @@ async function main() {
     process.exit(1);
   }
 
+  // Load MCP Output
+  let mcpOutput = '';
+  try {
+    mcpOutput = fs.readFileSync('mcp-doc-output.txt', 'utf-8');
+  } catch (e) {
+    mcpOutput = 'No MCP documentation available.';
+  }
+
   const files = await getChangedFiles(prNumber);
   const lintResult = runLint(files);
   const buildResult = runBuildCheck();
   const auditResult = runAudit();
   const testCoverage = runTestCoverage();
-  // Use diff-based AI review
-  const Review = await generateReview(prNumber);
+  // AI review based on diffs
+  const aiReview = await generateAIReviewWithDiffs(prNumber);
 
   // Summary logic
   let summary = 'All checks passed ✅';
   const issueKeywords = /fail|error|✖|problems?|Vulnerabilities found: [1-9]|not covered/i;
-  if (
-    issueKeywords.test(lintResult) ||
-    issueKeywords.test(buildResult) ||
-    issueKeywords.test(auditResult) ||
-    issueKeywords.test(testCoverage)
-  ) {
+  
+  if (issueKeywords.test(lintResult) || issueKeywords.test(buildResult) || issueKeywords.test(auditResult) || issueKeywords.test(testCoverage)) {
     summary = 'Some issues found ⚠️';
   }
 
-  const commentBody = `### 🤖 **AutoDoc Automated Review**\n\n**${summary}**\n\n---\n\n#### 🧹 **Lint Results**\n\`\`\`\n${lintResult}\n\`\`\`\n\n#### 🏗️ **Build Results**\n\`\`\`\n${buildResult}\n\`\`\`\n\n#### 🧪 **Test Coverage**\n\`\`\`\n${testCoverage}\n\`\`\`\n\n#### 🛡️ **Vulnerability Check**\n${auditResult}\n\n#### 💡 **MCP Suggestions**\n${Review}\n\n---`;
+  const commentBody = `### 🤖 **AutoDoc Automated Review**
+
+**${summary}**
+
+---
+
+#### 🧹 **Lint Results**
+\`\`\`
+${lintResult}
+\`\`\`
+
+#### 🏗️ **Build Results**
+\`\`\`
+${buildResult}
+\`\`\`
+
+#### 🧪 **Test Coverage**
+\`\`\`
+${testCoverage}
+\`\`\`
+
+#### 🛡️ **Vulnerability Check**
+${auditResult}
+
+#### 💡 **MCP Suggestions**
+${mcpOutput}
+
+#### 🤖 **AI Review Suggestions (Diff-based)**
+${aiReview}
+
+---`;
 
   await postPRCommentIfNew(prNumber, commentBody);
 }
