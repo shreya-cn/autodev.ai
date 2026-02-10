@@ -12,6 +12,13 @@ import path from 'path';
 import { spawn } from 'child_process';
 import OpenAI from 'openai';
 import crypto from 'crypto';
+import { KnowledgeBaseQueryHandler } from './knowledge-base-handler.js';
+import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
+import { Octokit } from '@octokit/rest';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Interface for class summary structure
 interface ClassSummary {
@@ -72,10 +79,25 @@ interface GitCommitInfo {
   ticketNumber?: string;
 }
 
+
+interface ChangeSummary {
+  files: string[];
+  changesByFile: Record<
+    string,
+    {
+      additions: number;
+      deletions: number;
+    }
+  >;
+  commitMessages: string[];
+}
+
+
 class JavaDocumentationMCPServer {
-  private server: Server;
+  public server: Server;
   private openai: OpenAI;
   private config: ServerConfig;
+  private knowledgeBaseHandler: KnowledgeBaseQueryHandler | null = null;
 
   constructor() {
     // Load configuration from environment variables
@@ -239,6 +261,25 @@ class JavaDocumentationMCPServer {
           },
         },
         {
+          name: 'review_code_changes',
+          description: 'AI-powered pull request review for any language using git diff',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              diff: {
+                type: 'string',
+                description: 'Unified git diff of the pull request'
+              },
+              files: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of changed file paths (optional)'
+              }
+            },
+            required: ['diff']
+          },
+        },
+        {
           name: 'full_pipeline',
           description: 'Complete pipeline: analyze Java project, generate documentation, and create release notes (with smart caching)',
           inputSchema: {
@@ -292,6 +333,38 @@ class JavaDocumentationMCPServer {
             required: [],
           },
         },
+        {
+          name: 'query_knowledge_base',
+          description: 'Ask questions about the codebase using metadata (privacy-safe, no raw code sent to LLM)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              question: {
+                type: 'string',
+                description: 'Question to ask about the codebase (e.g., "How does authentication work?")',
+              },
+              projectPath: {
+                type: 'string',
+                description: 'Path to the project (optional, uses ../autodev-ui by default)',
+              },
+            },
+            required: ['question'],
+          },
+        },
+        {
+          name: 'rebuild_knowledge_index',
+          description: 'Rebuild the knowledge base index by scanning the codebase (extracts metadata only, no raw code)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectPath: {
+                type: 'string',
+                description: 'Path to the project to index (optional, uses ../autodev-ui by default)',
+              },
+            },
+            required: [],
+          },
+        },
       ];
 
       this.logDebug('Registered tools:', tools.map(t => t.name));
@@ -329,8 +402,19 @@ class JavaDocumentationMCPServer {
           case 'get_cache_status':
             result = await this.getCacheStatus(request.params.arguments);
             break;
+          case 'query_knowledge_base':
+            result = await this.queryKnowledgeBase(request.params.arguments);
+            break;
+          case 'rebuild_knowledge_index':
+            result = await this.rebuildKnowledgeIndex(request.params.arguments);
+            break;
+          case 'review_code_changes': {
+            const args = request.params.arguments as any;
+            result = (await this.reviewCodeChanges(args)) as any;
+            break;
+          }
           default:
-            const availableTools = ['analyze_java_project', 'generate_documentation', 'generate_release_notes', 'full_pipeline', 'get_config', 'get_cache_status'];
+            const availableTools = ['analyze_java_project', 'generate_documentation', 'generate_release_notes', 'full_pipeline', 'get_config', 'get_cache_status', 'query_knowledge_base', 'rebuild_knowledge_index', 'review_code_changes'];
             this.logError(`Unknown tool requested: ${request.params.name}. Available tools: ${availableTools.join(', ')}`);
             result = {
               content: [
@@ -1450,6 +1534,93 @@ Make it suitable for architects and senior developers to understand the overall 
     }
   }
 
+  private async reviewCodeChanges(args: { diff: string; files: string[] }) {
+    if (!args || !args.diff || !args.files) {
+      return {
+        content: [
+          { type: 'text', text: '❌ Both diff and files are required' },
+        ],
+      };
+    }
+
+    // 1️⃣ Build a summary from the diff
+    const summary: Record<string, { additions: string[]; deletions: string[] }> = {};
+
+    args.files.forEach(file => {
+      summary[file] = { additions: [], deletions: [] };
+    });
+
+    let currentFile: string | null = null;
+
+    args.diff.split('\n').forEach(line => {
+      // Detect new file sections
+      if (line.startsWith('+++ b/')) {
+        currentFile = line.replace('+++ b/', '').trim();
+        if (!summary[currentFile]) summary[currentFile] = { additions: [], deletions: [] };
+        return;
+      }
+
+      if (!currentFile) return; // skip until a file is detected
+
+      // Skip diff metadata lines
+      if (line.startsWith('@@') || line.startsWith('---')) return;
+
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        summary[currentFile].additions.push(line.substring(1)); // remove + sign
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        summary[currentFile].deletions.push(line.substring(1)); // remove - sign
+      }
+    });
+
+    // 2️⃣ Optional: get recent commit messages for context
+    let commitMessages: string[] = [];
+    try {
+      const commitsOutput = execSync('git log -n 5 --pretty=format:%s', { encoding: 'utf-8' }).trim();
+      commitMessages = commitsOutput ? commitsOutput.split('\n') : [];
+    } catch { }
+
+    // 3️⃣ Prepare AI prompt (summary only, no raw diff)
+    const systemPrompt = `
+You are a senior software engineer performing a pull request review.
+
+Your job:
+- Identify bugs and logic issues
+- Spot security concerns
+- Suggest performance improvements
+- Improve readability and maintainability
+- Point out missing tests
+- Be constructive and concise
+`;
+
+    const userPrompt = `
+PR Change Summary:
+
+Changed files: ${args.files.join(', ') || 'None'}
+
+File changes (lines added / removed):
+${JSON.stringify(summary, null, 2)}
+
+Recent commit messages:
+${commitMessages.join('\n') || 'None'}
+`;
+
+    // 4️⃣ Send summary to AI
+    const response = await this.openai.chat.completions.create({
+      model: this.config.openaiModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.2,
+    });
+
+    return {
+      content: [
+        { type: 'text', text: response.choices[0]?.message?.content || 'No review feedback generated.' },
+      ],
+    };
+  }
+
   private async generateDetailedDesign(classesSummary: ClassSummary[], outputFormat: string): Promise<string> {
     this.logInfo(`Generating Detailed Design using OpenAI model: ${this.config.openaiModel}`);
 
@@ -1532,36 +1703,36 @@ Make it suitable for developers to understand the detailed implementation design
     }
   }
 
-private async generateOpenApiSpecification(
-  classesSummary: ClassSummary[],
-  outputFormat: string
-): Promise<string> {
-  this.logInfo(`Generating OpenAPI Specification using OpenAI model: ${this.config.openaiModel}`);
+  private async generateOpenApiSpecification(
+    classesSummary: ClassSummary[],
+    outputFormat: string
+  ): Promise<string> {
+    this.logInfo(`Generating OpenAPI Specification using OpenAI model: ${this.config.openaiModel}`);
 
-  if (!this.config.openaiApiKey) {
-    throw new Error('OpenAI API key is not configured. Set OPENAI_API_KEY environment variable.');
-  }
+    if (!this.config.openaiApiKey) {
+      throw new Error('OpenAI API key is not configured. Set OPENAI_API_KEY environment variable.');
+    }
 
-  // 1. Identify serviceName from SpringBootApplication class
-  const mainAppClass = classesSummary.find(cls =>
-    cls.annotations?.includes("SpringBootApplication")
-  );
-  if (!mainAppClass) {
-    throw new Error("Could not determine service name — no class with @SpringBootApplication found.");
-  }
+    // 1. Identify serviceName from SpringBootApplication class
+    const mainAppClass = classesSummary.find(cls =>
+      cls.annotations?.includes("SpringBootApplication")
+    );
+    if (!mainAppClass) {
+      throw new Error("Could not determine service name — no class with @SpringBootApplication found.");
+    }
 
-  // Strip "Application" suffix for a cleaner service name
-  const rawServiceName = mainAppClass.className.replace(/Application$/, "");
-  const serviceName = rawServiceName.charAt(0).toLowerCase() + rawServiceName.slice(1);
+    // Strip "Application" suffix for a cleaner service name
+    const rawServiceName = mainAppClass.className.replace(/Application$/, "");
+    const serviceName = rawServiceName.charAt(0).toLowerCase() + rawServiceName.slice(1);
 
-  // 2. Auto-generate a simple description
-  const serviceDescription = `The ${rawServiceName} service provides API operations for managing ${rawServiceName.toLowerCase()} domain resources.`;
+    // 2. Auto-generate a simple description
+    const serviceDescription = `The ${rawServiceName} service provides API operations for managing ${rawServiceName.toLowerCase()} domain resources.`;
 
-  // 3. Extract REST controllers for context
-  const restControllers = classesSummary.filter(cls => cls.isRestController);
+    // 3. Extract REST controllers for context
+    const restControllers = classesSummary.filter(cls => cls.isRestController);
 
-  // 4. Prepare the OpenAPI generation prompt
-  const prompt = `You are given a list of Java classes extracted from a Spring Boot application, particularly REST controllers and their metadata. Based on this, generate a **production-ready OpenAPI 3.0 specification** in pure YAML format.
+    // 4. Prepare the OpenAPI generation prompt
+    const prompt = `You are given a list of Java classes extracted from a Spring Boot application, particularly REST controllers and their metadata. Based on this, generate a **production-ready OpenAPI 3.0 specification** in pure YAML format.
 
 ## Requirements:
 - Only output valid OpenAPI YAML — no explanations or text outside YAML.
@@ -1584,33 +1755,33 @@ ${JSON.stringify(classesSummary, null, 2)}
 Output ONLY the OpenAPI YAML, no extra commentary.
 `;
 
-  try {
-    const response = await this.openai.chat.completions.create({
-      model: this.config.openaiModel,
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert API documentation specialist. Output only valid OpenAPI 3.0 YAML, nothing else.`,
-        },
-        { role: 'user', content: prompt },
-      ],
-      max_tokens: 4000,
-      temperature: 0.3,
-    });
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: this.config.openaiModel,
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert API documentation specialist. Output only valid OpenAPI 3.0 YAML, nothing else.`,
+          },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 4000,
+        temperature: 0.3,
+      });
 
-    let yamlContent = response.choices[0]?.message?.content?.trim();
-    if (!yamlContent) {
-      throw new Error('OpenAI returned empty response');
-    }
+      let yamlContent = response.choices[0]?.message?.content?.trim();
+      if (!yamlContent) {
+        throw new Error('OpenAI returned empty response');
+      }
 
-    // Remove any accidental markdown fences
-    yamlContent = yamlContent
-      .replace(/```[a-zA-Z]*\n?/g, "")
-      .replace(/```/g, "")
-      .trim();
+      // Remove any accidental markdown fences
+      yamlContent = yamlContent
+        .replace(/```[a-zA-Z]*\n?/g, "")
+        .replace(/```/g, "")
+        .trim();
 
-    // 5. Wrap in AsciiDoc for Confluence rendering
-    const adocContent = `== Interface Concept
+      // 5. Wrap in AsciiDoc for Confluence rendering
+      const adocContent = `== Interface Concept
 [id='${serviceName}']
 ${serviceDescription}
 
@@ -1636,21 +1807,154 @@ ${yamlContent}
 
 
 
-  async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    this.logInfo('🚀 Java Documentation MCP Server with Jira Integration running on stdio');
+  // ============================================================================
+  // Knowledge Base Tools (Privacy-Safe)
+  // ============================================================================
 
-    // Auto-run pipeline if configured
-    if (this.config.autoRunPipeline && this.config.microservicePath) {
-      try {
-        this.logInfo('🔄 Auto-running documentation pipeline...');
-        await this.fullPipeline({});
-        this.logInfo('✅ Auto-run pipeline completed successfully');
-      } catch (error) {
-        this.logError('❌ Auto-run pipeline failed', error);
+  /**
+   * Query the knowledge base with a question
+   */
+  private async queryKnowledgeBase(args: any): Promise<CallToolResult> {
+    try {
+      const question = args.question;
+      if (!question) {
+        throw new Error('Question parameter is required');
       }
+
+      this.logInfo(`🔍 Querying knowledge base: "${question}"`);
+
+      // Initialize handler if not already done
+      if (!this.knowledgeBaseHandler) {
+        const dataDir = path.resolve(__dirname, '../data');
+        this.knowledgeBaseHandler = new KnowledgeBaseQueryHandler(
+          this.config.openaiApiKey,
+          dataDir
+        );
+      }
+
+      // Execute query
+      const result = await this.knowledgeBaseHandler.query(question);
+
+      // Format response
+      let responseText = `## Answer\n\n${result.answer}\n\n`;
+
+      if (result.sources.length > 0) {
+        responseText += `## Sources (${result.confidence} confidence)\n\n`;
+        result.sources.forEach((source, index) => {
+          responseText += `${index + 1}. **${source.file}** (${source.type})\n`;
+          if (source.snippet) {
+            responseText += `   ${source.snippet}\n`;
+          }
+          responseText += `   Relevance: ${(source.relevance * 100).toFixed(0)}%\n\n`;
+        });
+      }
+
+      if (result.suggestedFollowUps && result.suggestedFollowUps.length > 0) {
+        responseText += `## Suggested Follow-up Questions\n\n`;
+        result.suggestedFollowUps.forEach((q, index) => {
+          responseText += `${index + 1}. ${q}\n`;
+        });
+      }
+
+      responseText += `\n---\n_Privacy Note: This answer was generated from code structure metadata only. No actual implementation code was sent to the LLM._`;
+
+      this.logInfo(`✅ Knowledge base query completed (${result.confidence} confidence)`);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: responseText,
+          },
+        ],
+      };
+    } catch (error) {
+      this.logError('Knowledge base query failed', error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ Error querying knowledge base: ${error instanceof Error ? error.message : String(error)}\n\nMake sure the knowledge base index exists. Run 'rebuild_knowledge_index' tool first.`,
+          },
+        ],
+        isError: true,
+      };
     }
+  }
+
+  /**
+   * Rebuild the knowledge base index
+   */
+  private async rebuildKnowledgeIndex(args: any): Promise<CallToolResult> {
+    try {
+      const projectPath = args.projectPath || path.resolve(__dirname, '../../autodev-ui');
+      
+      this.logInfo(`🔄 Rebuilding knowledge base index for: ${projectPath}`);
+
+      // Run the build script
+      const scriptPath = path.resolve(__dirname, '../scripts/build-knowledge-base.js');
+      
+      const result = await this.executeScript(
+        'node',
+        [scriptPath, `--project=${projectPath}`]
+      );
+
+      this.logInfo('✅ Knowledge base index rebuilt successfully');
+
+      // Reset handler to force reload on next query
+      this.knowledgeBaseHandler = null;
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `✅ Knowledge base index rebuilt successfully!\n\n${result}\n\n_The index contains code structure metadata only - no implementation details._`,
+          },
+        ],
+      };
+    } catch (error) {
+      this.logError('Failed to rebuild knowledge index', error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `❌ Error rebuilding knowledge index: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
+  /**
+   * Execute a script and return output
+   */
+  private executeScript(command: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(command, args, { shell: true });
+      let output = '';
+      let errorOutput = '';
+
+      proc.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      proc.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve(output || errorOutput);
+        } else {
+          reject(new Error(`Script exited with code ${code}: ${errorOutput}`));
+        }
+      });
+
+      proc.on('error', (error) => {
+        reject(error);
+      });
+    });
   }
 }
 
@@ -1660,11 +1964,13 @@ async function main() {
   console.info(`📍 Current directory: ${process.cwd()}`);
   console.info(`🐛 Node version: ${process.version}`);
   
-  const server = new JavaDocumentationMCPServer();
+  const mcpServer = new JavaDocumentationMCPServer();
   console.info('✅ Server instance created');
-  console.info('🚀 Successfully launched MCP server');
   
-  await server.run();
+  const transport = new StdioServerTransport();
+  await mcpServer.server.connect(transport);
+  
+  console.info('🚀 Successfully launched MCP server');
 }
 
 // Handle graceful shutdown

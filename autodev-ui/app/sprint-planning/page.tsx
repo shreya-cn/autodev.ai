@@ -80,6 +80,8 @@ export default function SprintPlanning() {
   const [data, setData] = useState<SprintPlanningData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+  const [triggering, setTriggering] = useState(false);
+  const [triggerResult, setTriggerResult] = useState('');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -151,15 +153,15 @@ export default function SprintPlanning() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-white px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
+    <div className="min-h-screen bg-black px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
       <div className="max-w-[1600px] mx-auto">
         {/* Header */}
-        <div className="bg-dark rounded-2xl md:rounded-3xl px-6 md:px-10 lg:px-14 xl:px-16 py-8 md:py-12 lg:py-14 xl:py-16 text-white shadow-xl mb-8">
-          <h1 className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold mb-3 md:mb-4 lg:mb-5 leading-tight flex items-center gap-3">
-            <SparklesIcon className="h-10 w-10 text-primary" />
-            <span className="text-primary">Sprint Planning</span> Assistant
+        <div className="rounded-2xl px-7 py-7 text-white shadow-xl mb-8 border border-green-500/20" style={{background: 'linear-gradient(135deg, #1a1a1a 0%, #2d4a2e 50%, #1a1a1a 100%)'}}>
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 leading-tight flex items-center gap-3">
+            <SparklesIcon className="h-10 w-10" style={{color: '#b9ff66'}} />
+            <span style={{color: '#b9ff66'}}>Sprint Planning</span> Assistant
           </h1>
-          <p className="text-sm md:text-base lg:text-lg xl:text-xl text-gray-300 leading-relaxed max-w-4xl">
+          <p className="text-sm md:text-base lg:text-lg text-gray-300 leading-relaxed max-w-4xl">
             AI-powered sprint composition and capacity analysis
           </p>
         </div>
@@ -274,9 +276,9 @@ export default function SprintPlanning() {
 
               {/* Workload Optimization */}
               {data?.recommendations?.workload_optimization && (
-                <p className="text-sm text-gray-200 bg-white/5 p-3 rounded border border-white/10">
+                <div className="text-sm text-gray-200 bg-white/5 p-3 rounded border border-white/10">
                   <span className="font-semibold">Workload Optimization:</span> {data?.recommendations?.workload_optimization}
-                </p>
+                </div>
               )}
             </div>
 
@@ -449,7 +451,7 @@ export default function SprintPlanning() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-semibold text-dark">{sprint.completedStoryPoints}</p>
-                    <p className="text-xs text-gray">{sprint.sprintName.substring(0, 10)}</p>
+                    <p className="text-xs text-gray">{sprint.sprintName.replace(/\s*\(Sprint #\d+\)/, '')}</p>
                   </div>
                 </div>
               ))

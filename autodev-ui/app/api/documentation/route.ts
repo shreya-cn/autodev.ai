@@ -38,7 +38,7 @@ export async function GET() {
     // Get Confluence pages
     let confluencePages: ConfluencePage[] = [];
     try {
-      const { stdout } = await execAsync(`python3 ${workspaceRoot}/get_confluence_pages.py`);
+      const { stdout } = await execAsync(`python3 "${workspaceRoot}/get_confluence_pages.py"`);
       confluencePages = JSON.parse(stdout);
     } catch (error) {
       console.error('Error fetching Confluence pages:', error);
