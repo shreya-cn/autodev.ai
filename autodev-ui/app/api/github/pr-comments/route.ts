@@ -4,103 +4,113 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 
 export async function GET() {
+  console.log('--- 🚀 STARTING SYNC ---');
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.accessToken) {
-      return NextResponse.json({ commentsByTicket: {} });
-    }
+    if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const githubToken = process.env.GITHUB_TOKEN;
-    const repoOwner = process.env.GITHUB_REPO_OWNER;
-    const repoName = process.env.GITHUB_REPO_NAME;
+    const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-    // If GitHub is not configured, return empty object
-    if (!githubToken || !repoOwner || !repoName) {
-      return NextResponse.json({ commentsByTicket: {} });
-    }
-
-    // Fetch user's assigned tickets from Jira
-    const jiraResponse = await fetch(`${process.env.JIRA_URL}/rest/api/3/search?jql=assignee=currentUser()`, {
-      headers: {
-        'Authorization': `Bearer ${session.accessToken}`,
-        'Accept': 'application/json',
-      },
+    // 1. Get Jira Identity
+    const resourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+      headers: { 'Authorization': `Bearer ${session.accessToken}` },
     });
+    const resources = await resourcesRes.json();
+    if (!resources || resources.length === 0) throw new Error("No Jira resources found");
+    const cloudId = resources[0].id;
 
-    if (!jiraResponse.ok) {
-      return NextResponse.json({ commentsByTicket: {} });
-    }
+    // 2. Fetch Assigned Tickets
+    const userTicketsRes = await fetch(
+      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          // Broadened search: all assigned items that aren't closed
+          jql: `assignee = currentUser() AND status != Done`,
+          fields: ['key', 'summary', 'status'],
+        })
+      }
+    );
 
-    const jiraData = await jiraResponse.json();
-    const userTicketKeys = new Set(jiraData.issues?.map((issue: any) => issue.key) || []);
+    const userTicketsData = await userTicketsRes.json();
+    const issues = userTicketsData.issues || [];
 
-    if (userTicketKeys.size === 0) {
-      return NextResponse.json({ commentsByTicket: {} });
-    }
-
-    const octokit = new Octokit({ auth: githubToken });
-
-    // Fetch all open PRs
-    const { data: pulls } = await octokit.pulls.list({
-      owner: repoOwner,
-      repo: repoName,
-      state: 'open',
-      per_page: 50,
+    console.log('==========================================');
+    console.log('🔍 JIRA TICKETS FOUND');
+    issues.forEach((issue: any) => {
+      console.log(`- ${issue.key}: ${issue.fields.summary} (${issue.fields.status.name})`);
     });
+    console.log('==========================================');
+
+    const assignedKeys = issues.map((issue: any) => issue.key);
+
+    if (assignedKeys.length === 0) {
+      console.log('🛑 No assigned tickets. Ending.');
+      return NextResponse.json({ commentsByTicket: {} });
+    }
+
+    // 3. GitHub Search - FIXED for multiple tickets
+    // We use (KEY-1 OR KEY-2) syntax so it finds PRs matching ANY of your tickets
+    const jiraQueryPart = assignedKeys.length > 1 
+      ? `(${assignedKeys.join(' OR ')})` 
+      : assignedKeys[0];
+
+    const searchQuery = `repo:${process.env.REPO_OWNER}/${process.env.REPO_NAME} is:pr is:open ${jiraQueryPart}`;
+    console.log(`📡 GITHUB SEARCH: ${searchQuery}`);
+
+    const { data: searchResults } = await octokit.search.issuesAndPullRequests({ q: searchQuery });
+    console.log(`✅ MATCHING PRS FOUND: ${searchResults.items.length}`);
 
     const commentsByTicket: Record<string, any[]> = {};
 
-    // Fetch comments for each PR and group by ticket
-    for (const pr of pulls) {
-      // Extract ticket key from PR title (e.g., "SCRUM-8: Feature title")
-      const ticketMatch = pr.title.match(/^([A-Z]+-\d+)/);
-      if (!ticketMatch) continue;
+    for (const pr of searchResults.items) {
+      // Find which key(s) belong to this PR title
+      const matchedKeys = assignedKeys.filter(key => 
+        pr.title.toUpperCase().includes(key.toUpperCase())
+      );
 
-      const ticketKey = ticketMatch[1];
-      
-      // Only include PRs for user's assigned tickets
-      if (!userTicketKeys.has(ticketKey)) continue;
+      if (matchedKeys.length === 0) continue;
 
+      // Fetch comments for the matched PR
       const { data: comments } = await octokit.issues.listComments({
-        owner: repoOwner,
-        repo: repoName,
+        owner: process.env.REPO_OWNER!,
+        repo: process.env.REPO_NAME!,
         issue_number: pr.number,
       });
 
-      // Filter for AutoRev bot comments or all comments
-      const prComments = comments
-        .filter(comment => 
-          comment.body?.includes('**AutoRev Automated Review**') || 
-          !comment.body?.startsWith('<!-- ')
-        )
-        .map(comment => ({
-          id: comment.id.toString(),
+      const filtered = comments
+        .filter(c => {
+          const body = c.body || '';
+          // Flexible bot detection
+          return body.includes('AutoRev') || body.includes('🤖') || c.user?.login.includes('github-actions');
+        })
+        .map(c => ({
+          id: c.id.toString(),
           prNumber: pr.number,
           prTitle: pr.title,
-          ticketKey: ticketKey,
-          comment: comment.body || '',
-          author: comment.user?.login || 'Unknown',
-          createdAt: comment.created_at,
-          url: pr.html_url,
+          comment: c.body,
+          author: c.user?.login,
+          createdAt: c.created_at,
+          url: c.html_url
         }));
 
-      if (prComments.length > 0) {
-        if (!commentsByTicket[ticketKey]) {
-          commentsByTicket[ticketKey] = [];
-        }
-        commentsByTicket[ticketKey].push(...prComments);
+      if (filtered.length > 0) {
+        // Map the comments to every Jira key found in the PR title
+        matchedKeys.forEach(key => {
+          commentsByTicket[key] = filtered;
+        });
       }
     }
 
-    // Sort comments within each ticket by creation date (newest first)
-    Object.keys(commentsByTicket).forEach(ticketKey => {
-      commentsByTicket[ticketKey].sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    });
-
+    console.log(`📦 RETURNING DATA FOR: ${Object.keys(commentsByTicket).join(', ')}`);
     return NextResponse.json({ commentsByTicket });
-  } catch (error) {
-    return NextResponse.json({ commentsByTicket: {} });
+
+  } catch (error: any) {
+    console.error('❌ API ERROR:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

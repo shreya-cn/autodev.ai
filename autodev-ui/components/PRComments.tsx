@@ -25,7 +25,7 @@ export default function PRComments() {
 
   useEffect(() => {
     fetchPRComments();
-    const interval = setInterval(fetchPRComments, 60000); // Update every minute
+    const interval = setInterval(fetchPRComments, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -34,15 +34,16 @@ export default function PRComments() {
       const response = await fetch('/api/github/pr-comments');
       const data = await response.json();
       
-      if (data.commentsByTicket) {
-        setCommentsByTicket(data.commentsByTicket);
-        // Auto-expand all tickets on first load
-        if (Object.keys(expandedTickets).length === 0) {
-          setExpandedTickets(new Set(Object.keys(data.commentsByTicket)));
-        }
+      const newComments = data.commentsByTicket || {};
+      setCommentsByTicket(newComments);
+      
+      // Auto-expand on first load
+      if (expandedTickets.size === 0 && Object.keys(newComments).length > 0) {
+        setExpandedTickets(new Set(Object.keys(newComments)));
       }
       setLoading(false);
     } catch (error) {
+      console.error("Fetch error:", error);
       setLoading(false);
     }
   };
@@ -57,8 +58,13 @@ export default function PRComments() {
     setExpandedTickets(newExpanded);
   };
 
-  const totalComments = Object.values(commentsByTicket).reduce((sum, comments) => sum + comments.length, 0);
+  const truncateComment = (comment: string, lines: number = 3) => {
+    const split = comment.split('\n');
+    return split.length <= lines ? comment : split.slice(0, lines).join('\n') + '...';
+  };
+
   const ticketKeys = Object.keys(commentsByTicket).sort();
+  const totalComments = Object.values(commentsByTicket).reduce((sum, comments) => sum + comments.length, 0);
 
   if (loading) {
     return (
@@ -79,18 +85,18 @@ export default function PRComments() {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4 mb-6 md:mb-8">
         <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-white">Open PR Comments</h2>
         <div className="flex gap-2 items-center">
-          <span className="bg-primary text-dark text-sm md:text-base px-5 md:px-6 py-2 md:py-2.5 rounded-full font-bold shadow-md">
+          <span className="bg-primary text-dark text-sm px-5 py-2 rounded-full font-bold shadow-md">
             {ticketKeys.length} {ticketKeys.length === 1 ? 'Ticket' : 'Tickets'}
           </span>
-          <span className="bg-dark text-white text-sm md:text-base px-5 md:px-6 py-2 md:py-2.5 rounded-full font-bold shadow-md">
+          <span className="bg-dark text-white text-sm px-5 py-2 rounded-full font-bold shadow-md">
             {totalComments} {totalComments === 1 ? 'Comment' : 'Comments'}
           </span>
         </div>
       </div>
 
       {ticketKeys.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-gray">No PR comments for your assigned tickets</p>
+        <div className="text-center py-12 bg-white rounded-xl border-2 border-dashed border-gray-200">
+          <p className="text-gray-500 font-medium">No automated feedback found for your assigned tickets.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -98,65 +104,38 @@ export default function PRComments() {
             const ticketComments = commentsByTicket[ticketKey];
             const isExpanded = expandedTickets.has(ticketKey);
             const firstComment = ticketComments[0];
+            const prUrl = `https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO_OWNER}/${process.env.NEXT_PUBLIC_GITHUB_REPO_NAME}/pull/${firstComment.prNumber}`;
 
             return (
               <div key={ticketKey} className="bg-white rounded-xl shadow-md overflow-hidden">
-                {/* Ticket Header */}
                 <button
                   onClick={() => toggleTicket(ticketKey)}
-                  className="w-full flex items-center justify-between p-4 md:p-5 bg-linear-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 transition border-l-4 border-primary"
+                  className="w-full flex items-center justify-between p-4 md:p-5 bg-primary/5 hover:bg-primary/10 transition border-l-4 border-primary"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="bg-primary text-dark px-3 py-1 rounded-lg font-bold text-sm md:text-base">
-                      {ticketKey}
-                    </span>
+                    <span className="bg-primary text-dark px-3 py-1 rounded-lg font-bold text-sm">{ticketKey}</span>
                     <div className="text-left">
-                      <a
-                        href={firstComment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-base md:text-lg font-semibold text-dark hover:text-primary transition"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <a href={prUrl} target="_blank" rel="noopener noreferrer" className="text-base font-semibold text-dark hover:text-primary transition" onClick={(e) => e.stopPropagation()}>
                         {firstComment.prTitle}
                       </a>
-                      <p className="text-xs md:text-sm text-gray mt-1">
-                        {ticketComments.length} {ticketComments.length === 1 ? 'comment' : 'comments'}
-                      </p>
                     </div>
                   </div>
-                  {isExpanded ? (
-                    <ChevronUpIcon className="h-5 w-5 md:h-6 md:w-6 text-dark" />
-                  ) : (
-                    <ChevronDownIcon className="h-5 w-5 md:h-6 md:w-6 text-dark" />
-                  )}
+                  {isExpanded ? <ChevronUpIcon className="h-5 w-5 text-dark" /> : <ChevronDownIcon className="h-5 w-5 text-dark" />}
                 </button>
 
-                {/* Comments */}
                 {isExpanded && (
-                  <div className="p-4 md:p-5 space-y-3 md:space-y-4">
+                  <div className="p-4 md:p-5 space-y-4">
                     {ticketComments.map((comment) => (
-                      <div
-                        key={comment.id}
-                        className="bg-gray-light rounded-lg md:rounded-xl p-4 md:p-5 border-l-2 border-gray/30"
-                      >
+                      <div key={comment.id} className="bg-gray-light rounded-lg p-4 border-l-2 border-primary/40">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs md:text-sm font-semibold text-dark">
-                              {comment.author === 'github-actions[bot]' || comment.comment.includes('🤖') ? '🤖 AutoRev' : `@${comment.author}`}
-                            </span>
-                            <span className="text-xs text-gray">
-                              •
-                            </span>
-                            <span className="text-xs text-gray">
-                              {new Date(comment.createdAt).toLocaleDateString()} {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
+                            <span className="text-xs font-bold text-dark flex items-center gap-1">🤖 AutoRev</span>
+                            <span className="text-[10px] text-gray uppercase tracking-tighter">• {new Date(comment.createdAt).toLocaleDateString()}</span>
                           </div>
+                          <a href={comment.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline uppercase">View on GitHub</a>
                         </div>
-                        <div className="prose prose-sm md:prose-base max-w-none">
-                          <pre className="whitespace-pre-wrap text-xs md:text-sm text-dark leading-relaxed font-sans">
-                            {comment.comment}
-                          </pre>
+                        <div className="prose prose-sm max-w-none">
+                          <pre className="whitespace-pre-wrap text-xs md:text-sm text-dark leading-relaxed font-sans">{truncateComment(comment.comment)}</pre>
                         </div>
                       </div>
                     ))}

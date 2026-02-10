@@ -24,8 +24,8 @@ To make this feature work, you need to add these environment variables:
 ```bash
 # GitHub Configuration
 GITHUB_TOKEN=ghp_your_github_personal_access_token
-GITHUB_REPO_OWNER=your-github-username-or-org
-GITHUB_REPO_NAME=autodev.ai
+REPO_OWNER=your-github-username-or-org
+REPO_NAME=autodev.ai
 ```
 
 ### For GitHub Actions (Repository Secrets):
@@ -142,7 +142,7 @@ The UI automatically:
 ## 🚀 Next Steps
 
 1. **Add GitHub token** to `.env.local` in `autodev-ui/`
-2. **Add repository details** (GITHUB_REPO_OWNER, GITHUB_REPO_NAME)
+2. **Add repository details** (REPO_OWNER, REPO_NAME)
 3. **Ensure OPENAI_API_KEY** is in GitHub repository secrets
 4. **Create a test PR** to see the automation in action
 5. **Check the "Open PR Comments"** section in your UI
