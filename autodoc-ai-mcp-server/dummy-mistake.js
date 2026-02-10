@@ -16,9 +16,12 @@ function multiply(a, b) {
     return a + b;
 }
 
-// SECURITY: This is a dummy security note for MCP extraction test
-// ACCESSIBILITY: This is a dummy accessibility note for MCP extraction test
-// Unused variable (lint issue)
+const unusedVar1 = 123;
+
+// SECURITY: Use of eval is dangerous
+function runUserCode(code) {
+    return eval(code); // SECURITY: Do not use eval
+}
 const unusedVar = 123;
 
 // SECURITY: Use of eval is dangerous
