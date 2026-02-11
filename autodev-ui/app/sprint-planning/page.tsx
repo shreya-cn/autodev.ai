@@ -87,22 +87,23 @@ export default function SprintPlanning() {
   const [maxDate, setMaxDate] = useState<string>('');
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportMessage, setReportMessage] = useState<{ type: 'success' | 'error'; message: string; url?: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchSprintData();
+    }
+  }, [status]);
 
   const fetchSprintData = async () => {
     try {
-      console.log('Fetching sprint planning data...');
-      setLoading(true);
-      setError(null);
       const response = await fetch('/api/jira/sprint-planning');
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `API returned ${response.status}`);
-      }
-      
       const result = await response.json();
-      console.log('Sprint planning response:', result);
       setData(result);
       setSelectedTickets(result.recommendations?.suggested_tickets || []);
 
@@ -127,23 +128,9 @@ export default function SprintPlanning() {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching sprint data:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load sprint planning data');
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [status, router]);
-
-  useEffect(() => {
-    console.log('Sprint planning useEffect triggered, status:', status);
-    if (status === 'authenticated') {
-      fetchSprintData();
-    }
-  }, [status]);
 
   const generateSprintReport = async () => {
     if (!reportDate) {
@@ -212,19 +199,10 @@ export default function SprintPlanning() {
     );
   }
 
-  if (error || !data) {
+  if (!data) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <p className="text-red-600 font-semibold mb-2">Error loading sprint planning data</p>
-          {error && <p className="text-gray-600 text-sm">{error}</p>}
-          <button
-            onClick={() => fetchSprintData()}
-            className="mt-4 px-4 py-2 bg-primary text-dark rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
+        <p className="text-red-600">Error loading sprint planning data</p>
       </div>
     );
   }

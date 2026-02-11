@@ -657,25 +657,6 @@ class JavaDocumentationMCPServer {
 
   private async getCurrentGitBranch(projectPath: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      // First, try to get branch from GitHub Actions environment variables
-      // GITHUB_HEAD_REF is set for pull_request events (the source branch)
-      // GITHUB_REF_NAME is the branch/tag name for push events
-      const githubHeadRef = process.env.GITHUB_HEAD_REF;
-      const githubRefName = process.env.GITHUB_REF_NAME;
-      
-      if (githubHeadRef) {
-        this.logDebug(`Using branch from GITHUB_HEAD_REF: ${githubHeadRef}`);
-        resolve(githubHeadRef);
-        return;
-      }
-      
-      if (githubRefName && githubRefName !== 'merge') {
-        this.logDebug(`Using branch from GITHUB_REF_NAME: ${githubRefName}`);
-        resolve(githubRefName);
-        return;
-      }
-
-      // Fallback to git command
       const git = spawn('git', ['branch', '--show-current'], { 
         cwd: projectPath,
         stdio: 'pipe'
@@ -697,19 +678,15 @@ class JavaDocumentationMCPServer {
         
         if (code !== 0) {
           const errorMessage = error.trim() || `Git branch command failed with exit code ${code}`;
-          this.logDebug(`Git branch command failed with code ${code}: ${errorMessage}`);
-          // Don't reject, just use fallback
-          this.logDebug('Using fallback branch: main');
-          resolve('main');
+          this.logError(`Git branch command failed with code ${code}: ${errorMessage}`);
+          reject(new Error(`Git branch command failed with code ${code}: ${errorMessage}`));
           return;
         }
 
         const currentBranch = output.trim();
         if (!currentBranch) {
-          this.logDebug('Git branch command returned empty output (likely detached HEAD in CI)');
-          // Don't reject, just use fallback
-          this.logDebug('Using fallback branch: main');
-          resolve('main');
+          this.logError('Git branch command returned empty output - could not determine current branch');
+          reject(new Error('Could not determine current Git branch'));
           return;
         }
 
@@ -718,10 +695,8 @@ class JavaDocumentationMCPServer {
       });
 
       git.on('error', (err) => {
-        this.logDebug(`Failed to execute git branch command: ${err.message}`);
-        // Don't reject, just use fallback
-        this.logDebug('Using fallback branch: main');
-        resolve('main');
+        this.logError(`Failed to execute git branch command: ${err.message}`, err);
+        reject(new Error(`Failed to execute git branch command: ${err.message}`));
       });
     });
   }

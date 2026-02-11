@@ -133,12 +133,15 @@ export default function TicketGeneratorPage() {
                 </svg>
               </div>
             </div>
+
             <h2 className="text-2xl font-bold text-white text-center mb-3">
               Confluence Requirements Sync
             </h2>
+
             <p className="text-gray-400 text-center mb-6">
               Search your Confluence space for pages with requirement in the title and automatically create Jira tickets based on their content.
             </p>
+
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-gray-300">
                 <svg className="w-4 h-4" style={{ color: '#b9ff66' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -159,8 +162,9 @@ export default function TicketGeneratorPage() {
                 <span>Story points and technical estimation</span>
               </div>
             </div>
+
             <div className="mt-auto pt-6 text-center">
-              <span className="inline-block px-4 py-2 rounded-lg font-semibold" style={{backgroundColor: '#b9ff66', color: '#000'}}>
+              <span className="inline-block px-4 py-2 rounded-lg font-semibold" style={{ backgroundColor: '#b9ff66', color: '#000' }}>
                 Get Started →
               </span>
             </div>

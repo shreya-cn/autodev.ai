@@ -221,9 +221,12 @@ export async function GET(request: Request) {
       console.log('Active sprint fetch error:', errorText);
     }
 
-    // Continue even if no active sprint - we can still show backlog and velocity data
+    // Return error if no active sprint found
     if (!currentSprint) {
-      console.warn('No active sprint found - continuing with backlog and historical data');
+      return NextResponse.json(
+        { error: 'No active sprint found', message: 'Please create or activate a sprint in JIRA to continue.' },
+        { status: 400 }
+      );
     }
 
     // 3. Fetch backlog
