@@ -137,7 +137,6 @@ class LLMConfluenceJiraAutomator:
         self.update_confluence_page(page_id, new_content)
         print(f"Success. {len(created_keys)} tickets in backlog.")
         print(f"CREATED_TICKETS_JSON_START\n{{\"{page_id}\": {json.dumps(created_keys)} }}\nCREATED_TICKETS_JSON_END")
-        console.log(f"Created tickets for page {page_id}: {created_keys}")
         return created_keys
 
 if __name__ == "__main__":
