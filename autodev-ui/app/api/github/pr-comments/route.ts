@@ -9,6 +9,16 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session?.accessToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Check for required environment variables
+    if (!process.env.GITHUB_TOKEN) {
+      console.error('❌ GITHUB_TOKEN not configured');
+      return NextResponse.json({ commentsByTicket: {}, error: 'GitHub integration not configured' }, { status: 200 });
+    }
+    if (!process.env.REPO_OWNER || !process.env.REPO_NAME) {
+      console.error('❌ REPO_OWNER or REPO_NAME not configured');
+      return NextResponse.json({ commentsByTicket: {}, error: 'Repository not configured' }, { status: 200 });
+    }
+
     const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
     // 1. Get Jira Identity

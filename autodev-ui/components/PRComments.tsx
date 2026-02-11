@@ -32,6 +32,11 @@ export default function PRComments() {
   const fetchPRComments = async () => {
     try {
       const response = await fetch('/api/github/pr-comments');
+      if (!response.ok && response.status !== 200) {
+        console.warn('PR comments API returned error:', response.status);
+        setLoading(false);
+        return;
+      }
       const data = await response.json();
       
       const newComments = data.commentsByTicket || {};
