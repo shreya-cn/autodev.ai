@@ -1,3 +1,4 @@
+
 import fs from 'fs';
 import { execSync, spawn } from 'child_process';
 import { Octokit } from '@octokit/rest';
@@ -12,12 +13,15 @@ if (!GITHUB_TOKEN || !OPENAI_API_KEY) {
   process.exit(1);
 }
 
-// Determine MCP server entrypoint
 const MCP_SERVER_PATH = fs.existsSync('./dist/index.js')
-  ? './dist/index.js'
-  : './dist/mcp-server.js';
+    ? './dist/index.js'
+    : './dist/mcp-server.js';
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
+
+/* -------------------------------------------------------------------------- */
+/*                               GitHub Helpers                               */
+/* -------------------------------------------------------------------------- */
 
 async function getPRDiff(prNumber) {
   const { data } = await octokit.pulls.get({
@@ -38,12 +42,16 @@ async function getPRFiles(prNumber) {
   return data.map(f => f.filename);
 }
 
+/* -------------------------------------------------------------------------- */
+/*                             MCP AI Code Review                             */
+/* -------------------------------------------------------------------------- */
+
 async function generateMCPReview(prNumber) {
   return new Promise(async (resolve) => {
-    console.log('🤖 Orchestrating MCP PR Review via JSON-RPC...');
+    console.log('🤖 Running MCP AI PR Review...');
 
     if (!fs.existsSync(MCP_SERVER_PATH)) {
-      resolve(`⚠️ MCP server not found at ${MCP_SERVER_PATH}`);
+      resolve('⚠️ MCP server not found.');
       return;
     }
 
@@ -55,63 +63,63 @@ async function generateMCPReview(prNumber) {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    let finished = false;
     let reviewResult = '';
+    let resolved = false;
 
-    function handleMCPOutput(data) {
-      const message = data.toString();
-      console.log(`[MCP]: ${message.trim()}`);
-
-      try {
-        const lines = message
-          .split('\n')
-          .filter(l => l.trim().startsWith('{'));
-
-        for (const line of lines) {
-          const json = JSON.parse(line);
-          if (json.id === 'pr-review-call' && json.result) {
-            reviewResult = json.result.content?.[0]?.text || '';
-            finished = true;
-            serverProcess.kill();
-          }
-        }
-      } catch {
-      
+    function cleanup(result) {
+      if (!resolved) {
+        resolved = true;
+        try { serverProcess.kill(); } catch {}
+        resolve(result);
       }
     }
 
-    serverProcess.stdout.on('data', handleMCPOutput);
-    serverProcess.stderr.on('data', handleMCPOutput);
+    function handleOutput(data) {
+      const lines = data.toString().split('\n');
+
+      for (const line of lines) {
+        if (!line.trim().startsWith('{')) continue;
+
+        try {
+          const json = JSON.parse(line);
+          if (json.id === 'pr-review-call' && json.result) {
+            reviewResult =
+                json.result?.content?.[0]?.text ||
+                '⚠️ MCP returned empty review.';
+            cleanup(reviewResult);
+          }
+        } catch {
+          // ignore malformed lines
+        }
+      }
+    }
+
+    serverProcess.stdout.on('data', handleOutput);
+    serverProcess.stderr.on('data', handleOutput);
 
     setTimeout(() => {
-      const toolCall = JSON.stringify({
+      const payload = JSON.stringify({
         jsonrpc: '2.0',
         id: 'pr-review-call',
         method: 'tools/call',
         params: {
           name: 'review_code_changes',
-          arguments: {
-            diff,
-            files,
-          },
+          arguments: { diff, files },
         },
       });
 
-      serverProcess.stdin.write(toolCall + '\n');
+      serverProcess.stdin.write(payload + '\n');
     }, 500);
 
-    serverProcess.on('close', () => {
-      resolve(reviewResult || '⚠️ MCP review returned no suggestions.');
-    });
-
     setTimeout(() => {
-      if (!finished) {
-        serverProcess.kill();
-        resolve('⚠️ MCP review timed out.');
-      }
+      cleanup('⚠️ MCP review timed out.');
     }, 120_000);
   });
 }
+
+/* -------------------------------------------------------------------------- */
+/*                                Lint Check                                  */
+/* -------------------------------------------------------------------------- */
 
 function runLint() {
   try {
@@ -120,6 +128,10 @@ function runLint() {
     return e.stdout || e.message;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/*                                Build Check                                 */
+/* -------------------------------------------------------------------------- */
 
 function runBuildCheck() {
   try {
@@ -130,18 +142,69 @@ function runBuildCheck() {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/*                            Vulnerability Audit                             */
+/* -------------------------------------------------------------------------- */
+
 function runAudit() {
   try {
-    const result = execSync('npm audit --json', { encoding: 'utf-8' });
-    const audit = JSON.parse(result);
-    const total = Object.keys(audit.vulnerabilities || {}).length;
-    return total === 0
-      ? 'No known vulnerabilities 🚦'
-      : `Vulnerabilities found: ${total} ⚠️`;
-  } catch {
-    return 'Vulnerabilities detected ⚠️';
+    const result = execSync('npm audit --json', {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return parseAudit(result);
+  } catch (e) {
+    if (e.stdout) {
+      return parseAudit(e.stdout);
+    }
+    return {
+      summary: '⚠️ Unable to parse npm audit results.',
+      details: 'Audit command failed unexpectedly.',
+      hasIssues: true,
+    };
   }
 }
+
+function parseAudit(raw) {
+  try {
+    const audit = JSON.parse(raw);
+
+    const vulnerabilities = audit.vulnerabilities || {};
+    const total = Object.keys(vulnerabilities).length;
+
+    if (total === 0) {
+      return {
+        summary: 'No known vulnerabilities 🚦',
+        details: 'All dependencies are secure.',
+        hasIssues: false,
+      };
+    }
+
+    let details = '';
+    for (const [pkg, info] of Object.entries(vulnerabilities)) {
+      details += `• ${pkg}\n`;
+      details += `  Severity: ${info.severity}\n`;
+      details += `  Range: ${info.range}\n`;
+      details += `  Fix Available: ${info.fixAvailable ? 'Yes' : 'No'}\n\n`;
+    }
+
+    return {
+      summary: `Vulnerabilities found: ${total} ⚠️`,
+      details,
+      hasIssues: true,
+    };
+  } catch {
+    return {
+      summary: '⚠️ Failed to parse audit JSON.',
+      details: raw,
+      hasIssues: true,
+    };
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         Post Comment If Not Exists                         */
+/* -------------------------------------------------------------------------- */
 
 async function postPRCommentIfNew(prNumber, body) {
   const { data: comments } = await octokit.issues.listComments({
@@ -161,31 +224,30 @@ async function postPRCommentIfNew(prNumber, body) {
   });
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                    Main                                    */
+/* -------------------------------------------------------------------------- */
+
 async function main() {
   const prNumber = process.argv[2];
   if (!prNumber) process.exit(1);
 
-  const [lint, build, audit, mcp] = await Promise.all([
+  const [lint, build, auditResult, mcp] = await Promise.all([
     runLint(),
     runBuildCheck(),
     runAudit(),
     generateMCPReview(prNumber),
   ]);
 
-  const summary = /fail|error|⚠️|vulnerabilities/i.test(lint + audit)
-    ? 'Some issues found ⚠️'
-    : 'All checks passed ✅';
+  const combinedText = lint + build + auditResult.summary + mcp;
 
-    // Show full audit details if vulnerabilities detected
-  let auditSection = audit;
-  if (/Vulnerabilities detected|Vulnerabilities found|vulnerabilities/i.test(audit)) {
-    try {
-      const auditRaw = execSync('npm audit', { encoding: 'utf-8' });
-      auditSection = `Vulnerabilities detected ⚠️\n\n\`\`\`\n${auditRaw}\n\`\`\``;
-    } catch (e) {
-      auditSection = `Vulnerabilities detected ⚠️\n\n\`\`\`\n${e.stdout || e.message}\n\`\`\``;
-    }
-  }
+  const hasIssues =
+      auditResult.hasIssues ||
+      /fail|error|⚠️|vulnerab|recommend|issue|fix|improve/i.test(combinedText);
+
+  const summary = hasIssues
+      ? 'Some issues found ⚠️'
+      : 'All checks passed ✅';
 
   const body = `### 🤖 **AutoDoc Automated Review**
 
@@ -194,6 +256,7 @@ ${summary}
 \`\`\`
 
 ---
+
 #### 🧹 Lint Results
 \`\`\`
 ${lint}
@@ -205,10 +268,15 @@ ${build}
 \`\`\`
 
 #### 🛡️ Vulnerability Check
-${audit}
+**${auditResult.summary}**
+
+\`\`\`
+${auditResult.details}
+\`\`\`
 
 #### 💡 MCP AI PR Review
 ${mcp}
+
 ---
 `;
 
