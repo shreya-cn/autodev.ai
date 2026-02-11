@@ -15,11 +15,10 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout PR code
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
+          ref: ${{ github.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
@@ -55,4 +54,4 @@ jobs:
       - name: Push changes to PR branch
         if: steps.changes.outputs.changed == 'true'
         run: |
-          git push origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
+          git push origin HEAD:${{ github.head_ref }}
