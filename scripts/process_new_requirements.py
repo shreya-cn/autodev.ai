@@ -46,17 +46,9 @@ def main():
     for page in pages:
         if not has_processed_label(page):
             print(f"Processing page: {page['title']} ({page['id']})")
-            result = subprocess.run(
-                ['python', 'confluence_llm_jira_automation.py', '--page-id', page['id']],
-                capture_output=True, text=True
-            )
-            if result.returncode == 0:
-                try:
-                    # Get the last line of stdout (should be the JSON array)
-                    tickets = json.loads(result.stdout.strip().split('\n')[-1])
-                except Exception:
-                    tickets = []
-                all_created_tickets[page['id']] = tickets
+            # Call your LLM-Jira automation here
+            ret = os.system(f'python confluence_llm_jira_automation.py --page-id {page["id"]}')
+            if ret == 0:
                 add_processed_label(page)
                 print(f"Marked as processed: {page['title']} ({page['id']})")
             else:
