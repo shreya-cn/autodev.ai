@@ -120,9 +120,7 @@ export async function POST(request: Request) {
         priority: {
           name: ticketData.suggestedPriority
         },
-        ...(ticketData.storyPoints && {
-          customfield_10016: ticketData.storyPoints // Story Points field (update ID if needed)
-        })
+        labels: ticketData.storyPoints ? [`sp-${ticketData.storyPoints}`] : []
       }
     };
 
@@ -191,9 +189,7 @@ export async function POST(request: Request) {
               issuetype: {
                 name: 'Subtask'  // Try 'Subtask' first, then 'Sub-task' if this fails
               },
-              ...(subtask.storyPoints && {
-                customfield_10016: subtask.storyPoints
-              })
+              labels: subtask.storyPoints ? [`sp-${subtask.storyPoints}`] : []
             }
           };
 

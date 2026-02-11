@@ -121,7 +121,7 @@ ${metadata.participants ? `Participants: ${metadata.participants.join(', ')}` : 
           priority: {
             name: ticket.priority,
           },
-          customfield_10016: ticket.storyPoints, // Story Points field
+          labels: ticket.storyPoints ? [`sp-${ticket.storyPoints}`] : [], // Story Points in labels
         },
       };
 

@@ -7,6 +7,7 @@ import { useSession, signOut } from 'next-auth/react';
 export default function Header() {
   const [activeTab, setActiveTab] = useState('jira');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { data: session } = useSession();
 
   if (!session) return null;
@@ -14,140 +15,92 @@ export default function Header() {
   const user = session.user;
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
 
+  const navLinks = [
+    { href: '/', label: 'Jira Board', id: 'jira' },
+    { href: '/sprint-planning', label: 'Sprint Planning', id: 'sprint-planning', title: 'Sprint Planning (PO View)' },
+    { href: '/documentation', label: 'Documentation', id: 'documentation' },
+    { href: '/ticket-generator', label: 'Ticket Generator', id: 'ticket-generator', title: 'AI-Powered Ticket Generator' },
+    { href: '/support-dashboard', label: 'Support', id: 'support-dashboard', title: 'AI Support Ticket Analyzer' },
+    { href: '/support-analytics', label: 'Analytics', id: 'support-analytics', title: 'Support Issues Analytics' },
+    { href: '/knowledge-base', label: 'KB', id: 'knowledge-base', icon: true, title: 'Knowledge Base - Ask questions about your codebase' },
+  ];
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-md">
-      <div className="max-w-[1600px] mx-auto px-6 md:px-10 lg:px-16 xl:px-24">
-        <div className="flex items-center justify-between h-16 md:h-18 lg:h-20">
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 md:h-16">
           {/* Logo */}
-          <div className="flex items-center">
+          <div className="flex items-center gap-2 sm:gap-4">
             <div className="shrink-0">
-              <span className="text-lg md:text-xl lg:text-2xl font-bold text-dark">
+              <span className="text-xl sm:text-2xl md:text-3xl font-bold text-dark">
                 AutoDev<span className="text-primary">.ai</span>
               </span>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <nav className="flex gap-3 md:gap-4 lg:gap-6">
-            <Link
-              href="/"
-              onClick={() => setActiveTab('jira')}
-              className={`inline-flex items-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-sm md:text-base font-bold transition-all ${
-                activeTab === 'jira'
-                  ? 'bg-primary text-dark shadow-md'
-                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
-              }`}
-            >
-              Jira Board
-            </Link>
-            <Link
-              href="/sprint-planning"
-              onClick={() => setActiveTab('sprint-planning')}
-              className={`inline-flex items-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-sm md:text-base font-bold transition-all ${
-                activeTab === 'sprint-planning'
-                  ? 'bg-primary text-dark shadow-md'
-                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
-              }`}
-              title="Sprint Planning (PO View)"
-            >
-              Sprint Planning
-            </Link>
-            <Link
-              href="/documentation"
-              onClick={() => setActiveTab('documentation')}
-              className={`inline-flex items-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-sm md:text-base font-bold transition-all ${
-                activeTab === 'documentation'
-                  ? 'bg-primary text-dark shadow-md'
-                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
-              }`}
-            >
-              Documentation
-            </Link>
-            <Link
-              href="/ticket-generator"
-              onClick={() => setActiveTab('ticket-generator')}
-              className={`inline-flex items-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-sm md:text-base font-bold transition-all ${
-                activeTab === 'ticket-generator'
-                  ? 'bg-primary text-dark shadow-md'
-                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
-              }`}
-              title="AI-Powered Ticket Generator"
-            >
-              Ticket Generator
-            </Link>
-            <Link
-              href="/knowledge-base"
-              onClick={() => setActiveTab('knowledge-base')}
-              className={`inline-flex items-center justify-center px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl transition-all ${
-                activeTab === 'knowledge-base'
-                  ? 'bg-primary text-dark shadow-md'
-                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
-              }`}
-              title="Knowledge Base - Ask questions about your codebase"
-            >
-              <svg 
-                className="w-6 h-6" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
+          {/* Desktop Navigation */}
+          <nav className="hidden xl:flex gap-1.5">
+            {navLinks.map((link) => (
+              <Link
+                key={link.id}
+                href={link.href}
+                onClick={() => setActiveTab(link.id)}
+                className={`inline-flex items-center px-3 py-1.5 rounded-lg text-base font-semibold transition-all ${
+                  activeTab === link.id
+                    ? 'bg-primary text-dark shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+                title={link.title}
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" 
-                />
-              </svg>
-            </Link>
-            <Link
-              href="/support-dashboard"
-              onClick={() => setActiveTab('support-dashboard')}
-              className={`inline-flex items-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-sm md:text-base font-bold transition-all ${
-                activeTab === 'support-dashboard'
-                  ? 'bg-primary text-dark shadow-md'
-                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
-              }`}
-              title="AI Support Ticket Analyzer"
-            >
-              Support
-            </Link>
-            <Link
-              href="/support-analytics"
-              onClick={() => setActiveTab('support-analytics')}
-              className={`inline-flex items-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-sm md:text-base font-bold transition-all ${
-                activeTab === 'support-analytics'
-                  ? 'bg-primary text-dark shadow-md'
-                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
-              }`}
-              title="Support Issues Analytics"
-            >
-              Analytics
-            </Link>
+                {link.icon ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                ) : (
+                  link.label
+                )}
+              </Link>
+            ))}
           </nav>
 
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            className="xl:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Toggle menu"
+          >
+            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {showMobileMenu ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+
           {/* User Profile */}
-          <div className="flex items-center relative">
+          <div className="flex items-center relative ml-2">
             <button
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center gap-3 hover:bg-gray-50 px-4 py-2 rounded-xl transition-all border-2 border-transparent hover:border-primary/20 shadow-sm hover:shadow-md"
+              className="flex items-center gap-1.5 sm:gap-2 hover:bg-gray-50 px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-lg transition-all"
             >
-              <div className="text-right hidden md:block">
-                <p className="text-sm font-bold text-dark">{user?.name}</p>
-                <p className="text-xs text-gray-500">{user?.email}</p>
+              <div className="text-right hidden lg:block">
+                <p className="text-xs font-semibold text-dark truncate max-w-[120px]">{user?.name}</p>
+                <p className="text-[10px] text-gray-500 truncate max-w-[120px]">{user?.email}</p>
               </div>
               {user?.image ? (
                 <img 
                   src={user.image} 
                   alt={user.name || 'User'} 
-                  className="h-9 w-9 md:h-10 md:w-10 rounded-full ring-2 ring-primary shadow-lg"
+                  className="h-8 w-8 rounded-full ring-2 ring-primary/30"
                 />
               ) : (
-                <div className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg ring-2 ring-primary/30">
-                  <span className="text-dark font-bold text-base md:text-lg">{initials}</span>
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center ring-2 ring-primary/30">
+                  <span className="text-dark font-bold text-xs">{initials}</span>
                 </div>
               )}
               <svg 
-                className={`w-4 h-4 text-gray-400 transition-transform ${showDropdown ? 'rotate-180' : ''}`} 
+                className={`w-3 h-3 text-gray-400 transition-transform hidden sm:block ${showDropdown ? 'rotate-180' : ''}`} 
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"
@@ -241,6 +194,37 @@ export default function Header() {
             )}
           </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {showMobileMenu && (
+          <div className="xl:hidden border-t border-gray-200 py-3">
+            <nav className="flex flex-col gap-1">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.id}
+                  href={link.href}
+                  onClick={() => {
+                    setActiveTab(link.id);
+                    setShowMobileMenu(false);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-base font-semibold transition-all ${
+                    activeTab === link.id
+                      ? 'bg-primary text-dark'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                  title={link.title}
+                >
+                  {link.icon && (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                  <span>{link.icon ? 'Knowledge Base' : link.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );
