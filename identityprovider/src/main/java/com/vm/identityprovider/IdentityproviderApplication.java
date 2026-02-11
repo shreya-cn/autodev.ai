@@ -8,6 +8,7 @@ public class IdentityproviderApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(IdentityproviderApplication.class, args);
+		System.out.println("Identity Provider Service is running...");
 	}
 
 }
