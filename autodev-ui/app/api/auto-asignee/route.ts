@@ -1,0 +1,182 @@
+export const runtime = "nodejs";
+import { NextResponse } from "next/server";
+import OpenAI from "openai";
+
+const JIRA_BASE = process.env.JIRA_URL!;
+const JIRA_EMAIL = process.env.JIRA_USER!;
+const JIRA_TOKEN = process.env.JIRA_API_TOKEN!;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
+
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+/* =========================
+   JIRA HELPERS
+========================= */
+
+async function fetchDoneIssueKeys(limit = 50) {
+  const jql = `
+    project = SCRUM
+    AND status = "Done"
+    ORDER BY resolved DESC
+  `;
+
+  const res = await fetch(`${JIRA_BASE}/rest/api/3/search/jql`, {
+    method: "POST",
+    headers: {
+      Authorization:
+        "Basic " +
+        Buffer.from(`${JIRA_EMAIL}:${JIRA_TOKEN}`).toString("base64"),
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      jql,
+      maxResults: limit,
+      fields: ["summary", "description", "issuetype", "assignee"],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("========== JIRA ERROR ==========");
+    console.error("Status:", res.status);
+    console.error("Response:", text);
+    console.error("================================");
+    throw new Error(`Jira fetch failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.issues.map((issue: any) => issue.key);
+}
+
+async function fetchIssue(issueKey: string) {
+  const res = await fetch(
+    `${JIRA_BASE}/rest/api/3/issue/${issueKey}?expand=changelog`,
+    {
+      headers: {
+        Authorization:
+          "Basic " +
+          Buffer.from(`${JIRA_EMAIL}:${JIRA_TOKEN}`).toString("base64"),
+        Accept: "application/json",
+      },
+    },
+  );
+
+  return res.json();
+}
+
+function extractAssignees(issue: any) {
+  const assignees = new Set<string>();
+
+  const current = issue.fields?.assignee;
+  if (current) assignees.add(current.displayName);
+
+  for (const history of issue.changelog?.histories || []) {
+    for (const item of history.items) {
+      if (item.field === "assignee" && item.toString) {
+        assignees.add(item.toString);
+      }
+    }
+  }
+
+  return assignees;
+}
+
+async function buildProfiles(issueKeys: string[]) {
+  const profiles: Record<string, any> = {};
+
+  for (const key of issueKeys) {
+    const issue = await fetchIssue(key);
+
+    const summary = issue.fields.summary;
+    const description = issue.fields.description || "";
+    const issueType = issue.fields.issuetype.name;
+
+    const context = `${summary} ${description}`.toLowerCase();
+    const assignees = extractAssignees(issue);
+
+    for (const name of assignees) {
+      if (!profiles[name]) {
+        profiles[name] = {
+          issues_worked: 0,
+          issue_types: new Set<string>(),
+          context: [],
+        };
+      }
+
+      profiles[name].issues_worked++;
+      profiles[name].issue_types.add(issueType);
+      profiles[name].context.push(context);
+    }
+  }
+
+  // convert Set → Array
+  for (const name in profiles) {
+    profiles[name].issue_types = Array.from(profiles[name].issue_types);
+  }
+
+  return profiles;
+}
+
+/* =========================
+   AI RANKING
+========================= */
+
+async function suggestAssignee(newIssue: any, profiles: any) {
+  const prompt = `
+You are a Jira expert.
+
+Suggest the best assignees for the issue based on their experience.
+Write the response in a clean, professional format suitable to paste directly into a Jira description.
+
+Issue Details:
+Summary: ${newIssue.summary}
+Description: ${newIssue.description}
+Issue Type: ${newIssue.issueType}
+
+Assignee Profiles:
+${JSON.stringify(profiles, null, 2)}
+
+Format the output like this:
+
+Recommended Assignees:
+1. Name – Short reason. (Profile Match: High/Medium/Low)
+2. Name – Short reason. (Profile Match: High/Medium/Low)
+
+Keep it concise and professional.
+Return only the formatted text.
+`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0.3,
+    messages: [
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+  });
+
+  return response.choices[0].message.content || "";
+}
+
+/* =========================
+   API ROUTE
+========================= */
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
+
+    const doneIssueKeys = await fetchDoneIssueKeys();
+    const profiles = await buildProfiles(doneIssueKeys);
+
+    const result = await suggestAssignee(body, profiles);
+
+    return NextResponse.json(result);
+  } catch (err: any) {
+    console.error(err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
