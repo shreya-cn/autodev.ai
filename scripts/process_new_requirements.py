@@ -63,10 +63,6 @@ def main():
                 print(f"Failed to process: {page['title']} ({page['id']})", file=sys.stderr)
         else:
             print(f"Already processed: {page['title']} ({page['id']})")
-    # Print all created tickets as JSON for workflow consumption
-    print("CREATED_TICKETS_JSON_START")
-    print(json.dumps(all_created_tickets))
-    print("CREATED_TICKETS_JSON_END")
 
 if __name__ == "__main__":
     main()
