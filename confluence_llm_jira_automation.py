@@ -145,4 +145,3 @@ if __name__ == "__main__":
     parser.add_argument("--page-id", required=True)
     args = parser.parse_args()
     keys = LLMConfluenceJiraAutomator().process_confluence_page(args.page_id)
-    print(json.dumps(keys))

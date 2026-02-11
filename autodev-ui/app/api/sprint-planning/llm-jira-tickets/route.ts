@@ -45,19 +45,36 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No jobs found for workflow run' }, { status: 404 });
   }
 
-  // 2. Get logs for the job
+  // 2. Get logs for the job (handle redirect)
   const logsUrl = `https://api.github.com/repos/${owner}/${repo}/actions/jobs/${job.id}/logs`;
   const logsRes = await fetch(logsUrl, {
     headers: {
       'Authorization': `token ${token}`,
       'Accept': 'application/vnd.github.v3+json',
     },
+    redirect: 'manual',
   });
-  if (!logsRes.ok) {
+  if (logsRes.status === 302) {
+    // GitHub returns a redirect to Azure Blob Storage
+    const redirectUrl = logsRes.headers.get('location');
+    if (!redirectUrl) {
+      return NextResponse.json({ error: 'Redirect location missing for logs' }, { status: 500 });
+    }
+    const blobRes = await fetch(redirectUrl);
+    if (!blobRes.ok) {
+      const err = await blobRes.text();
+      return NextResponse.json({ error: 'Could not fetch redirected job logs', details: err }, { status: 500 });
+    }
+    const logs = await blobRes.text();
+    const tickets = extractTicketsFromLogs(logs);
+    return NextResponse.json({ tickets });
+  } else if (!logsRes.ok) {
     const err = await logsRes.text();
     return NextResponse.json({ error: 'Could not fetch job logs', details: err }, { status: 500 });
+  } else {
+    // Sometimes logs are returned directly
+    const logs = await logsRes.text();
+    const tickets = extractTicketsFromLogs(logs);
+    return NextResponse.json({ tickets });
   }
-  const logs = await logsRes.text();
-  const tickets = extractTicketsFromLogs(logs);
-  return NextResponse.json({ tickets });
 }
