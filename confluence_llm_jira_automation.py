@@ -103,7 +103,7 @@ class LLMConfluenceJiraAutomator:
         print(f"Jira Failed: {resp.text}")
         return None
 
-    def process_confluence_page(self, page_id: str):
+    def process_confluence_page(self, page_id: str) -> List[str]:
         page_data = self.get_page_details(page_id)
         original_html = page_data["body"]["storage"]["value"]
         
@@ -131,15 +131,19 @@ class LLMConfluenceJiraAutomator:
     
         if created_keys:
             # Added links to make the keys clickable in Confluence
-            links = "".join([f'<li><a href="{self.jira_base}/browse/{k}">{k}</a></li>' for k in created_keys])
+            links = "".join([f'<li><a href=\"{self.jira_base}/browse/{k}\">{k}</a></li>' for k in created_keys])
             new_content += f"<h3>Created Tickets</h3><ul>{links}</ul>"
             
         self.update_confluence_page(page_id, new_content)
         print(f"Success. {len(created_keys)} tickets in backlog.")
+        print(f"CREATED_TICKETS_JSON_START\n{{\"{page_id}\": {json.dumps(created_keys)} }}\nCREATED_TICKETS_JSON_END")
+        console.log(f"Created tickets for page {page_id}: {created_keys}")
+        return created_keys
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--page-id", required=True)
     args = parser.parse_args()
-    LLMConfluenceJiraAutomator().process_confluence_page(args.page_id)
+    keys = LLMConfluenceJiraAutomator().process_confluence_page(args.page_id)
+    print(json.dumps(keys))

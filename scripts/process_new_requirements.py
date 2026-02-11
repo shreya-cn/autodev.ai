@@ -39,21 +39,34 @@ def add_processed_label(page):
 
 def main():
     pages = get_requirement_pages()
+    all_created_tickets = {}
     if not pages:
         print("No requirement pages found.")
         return
     for page in pages:
         if not has_processed_label(page):
             print(f"Processing page: {page['title']} ({page['id']})")
-            # Call your LLM-Jira automation here
-            ret = os.system(f'python confluence_llm_jira_automation.py --page-id {page["id"]}')
-            if ret == 0:
+            result = subprocess.run(
+                ['python', 'confluence_llm_jira_automation.py', '--page-id', page['id']],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                try:
+                    # Get the last line of stdout (should be the JSON array)
+                    tickets = json.loads(result.stdout.strip().split('\n')[-1])
+                except Exception:
+                    tickets = []
+                all_created_tickets[page['id']] = tickets
                 add_processed_label(page)
                 print(f"Marked as processed: {page['title']} ({page['id']})")
             else:
                 print(f"Failed to process: {page['title']} ({page['id']})", file=sys.stderr)
         else:
             print(f"Already processed: {page['title']} ({page['id']})")
+    # Print all created tickets as JSON for workflow consumption
+    print("CREATED_TICKETS_JSON_START")
+    print(json.dumps(all_created_tickets))
+    print("CREATED_TICKETS_JSON_END")
 
 if __name__ == "__main__":
     main()
