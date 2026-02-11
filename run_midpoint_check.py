@@ -16,6 +16,8 @@ from mid_sprint_report import (
     maybe_ai_notes,
     format_html,
     publish_to_confluence,
+    analyze_sprint_for_retro,
+    generate_retro_insights,
     BOARD_ID
 )
 
@@ -217,6 +219,11 @@ def main():
         
         if is_end:
             print(f"[{datetime.now()}] 🏁 Today is sprint end! Generating sprint end report for: {sprint.get('name')}")
+            # Generate retrospective insights for sprint end
+            print(f"[{datetime.now()}] 📊 Analyzing sprint for retrospective insights...")
+            retro_data = analyze_sprint_for_retro(issues, sprint, metrics)
+            retro_insights_html = generate_retro_insights(retro_data, sprint)
+            print(f"[{datetime.now()}] ✨ Retrospective insights generated")
             html = generate_sprint_end_report(sprint, issues, metrics)
             title = f"{sprint.get('name')} - Sprint End Report ({today})"
             publish_to_confluence(title, html, sprint)

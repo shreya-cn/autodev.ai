@@ -99,6 +99,30 @@ export default function Header() {
                 />
               </svg>
             </Link>
+            <Link
+              href="/support-dashboard"
+              onClick={() => setActiveTab('support-dashboard')}
+              className={`inline-flex items-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-sm md:text-base font-bold transition-all ${
+                activeTab === 'support-dashboard'
+                  ? 'bg-primary text-dark shadow-md'
+                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
+              }`}
+              title="AI Support Ticket Analyzer"
+            >
+              Support
+            </Link>
+            <Link
+              href="/support-analytics"
+              onClick={() => setActiveTab('support-analytics')}
+              className={`inline-flex items-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl text-sm md:text-base font-bold transition-all ${
+                activeTab === 'support-analytics'
+                  ? 'bg-primary text-dark shadow-md'
+                  : 'text-gray-600 hover:bg-gray-light hover:shadow-sm'
+              }`}
+              title="Support Issues Analytics"
+            >
+              Analytics
+            </Link>
           </nav>
 
           {/* User Profile */}

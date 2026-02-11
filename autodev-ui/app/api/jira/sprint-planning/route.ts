@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../auth/[...nextauth]/route';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -17,70 +15,37 @@ interface SprintData {
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    // Log the OAuth access token for debugging scopes
-    console.log('OAuth access token:', session?.accessToken);
-    // Attempt to decode JWT payload for scopes (if possible)
-    if (session?.accessToken) {
-      try {
-        const base64Payload = session.accessToken.split('.')[1];
-        const decodedPayload = Buffer.from(base64Payload, 'base64').toString('utf8');
-        console.log('Decoded access token payload:', decodedPayload);
-      } catch (e) {
-        console.warn('Could not decode access token as JWT:', e);
-      }
-    }
-
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Use environment variable for project key, fallback to 'SCRUM'
+    // Use BasicAuth with environment variables
+    const jiraUrl = process.env.JIRA_URL || 'https://auto-dev.atlassian.net';
+    const jiraUsername = process.env.JIRA_USERNAME || '';
+    const jiraToken = process.env.JIRA_API_TOKEN || '';
     const projectKey = process.env.JIRA_PROJECT_KEY || 'SCRUM';
-    console.log('Using project key:', projectKey);
+    const boardId = process.env.JIRA_BOARD_ID || '1';
 
-    // Get accessible Jira resources
-    let cloudId: string | null = null;
-    
-    try {
-      const resourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
-        headers: {
-          'Authorization': `Bearer ${session.accessToken}`,
-          'Accept': 'application/json',
-        },
-      });
-
-      if (resourcesRes.ok) {
-        const resources = await resourcesRes.json();
-        if (resources && resources.length > 0) {
-          cloudId = resources[0].id;
-          console.log('Connected to Jira cloud:', cloudId);
-        }
-      } else {
-        console.log('Failed to fetch Jira resources, will use demo data');
-      }
-    } catch (error) {
-      console.log('Error fetching Jira resources:', error, 'using demo data');
+    if (!jiraUsername || !jiraToken) {
+      return NextResponse.json({ error: 'Missing JIRA credentials' }, { status: 401 });
     }
+
+    // Setup BasicAuth header
+    const authHeader = `Basic ${Buffer.from(`${jiraUsername}:${jiraToken}`).toString('base64')}`;
+    
+    console.log('Using JIRA URL:', jiraUrl);
+    console.log('Using project key:', projectKey);
+    console.log('Using board ID:', boardId);
 
     // 1. Fetch past sprints using Agile API (guaranteed real sprints)
     let pastSprints: SprintData[] = [];
     let backlogTickets: any[] = [];
-
-    // Get board ID from env or default to 1
-    const boardId = process.env.JIRA_BOARD_ID || '1';
-    console.log('Using Jira board ID:', boardId);
     let closedSprints: any[] = [];
     let noSprints = false;
 
     // Fetch closed sprints from Agile API
     console.log(`Fetching closed sprints from Agile API for board ${boardId}...`);
     const sprintsRes = await fetch(
-      `https://api.atlassian.com/ex/jira/${cloudId}/rest/agile/1.0/board/${boardId}/sprint?state=closed&maxResults=5&orderBy=-endDate`,
+      `${jiraUrl}/rest/agile/1.0/board/${boardId}/sprint?state=closed&maxResults=5&orderBy=-endDate`,
       {
         headers: {
-          'Authorization': `Bearer ${session.accessToken}`,
+          'Authorization': authHeader,
           'Accept': 'application/json',
         },
       }
@@ -120,11 +85,11 @@ export async function GET(request: Request) {
         console.log(`Fetching issues for sprint: ${sprint.name} (ID: ${sprint.id})`);
         // Fetch completed issues (status = Done)
         const completedRes = await fetch(
-          `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
+          `${jiraUrl}/rest/api/3/search/jql`,
           {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${session.accessToken}`,
+              'Authorization': authHeader,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -136,11 +101,11 @@ export async function GET(request: Request) {
         );
         // Fetch all issues in sprint (planned)
         const plannedRes = await fetch(
-          `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
+          `${jiraUrl}/rest/api/3/search`,
           {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${session.accessToken}`,
+              'Authorization': authHeader,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -226,49 +191,42 @@ export async function GET(request: Request) {
       pastSprints = pastSprints.slice(0, 5);
     }
 
-    // 2. Fetch current sprint
+    // 2. Fetch current sprint directly from Agile API
     let currentSprint = null;
-    const currentSprintRes = await fetch(
-      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
+    console.log(`Fetching active sprint from Agile API for board ${boardId}...`);
+    
+    const activeSprintsRes = await fetch(
+      `${jiraUrl}/rest/agile/1.0/board/${boardId}/sprint?state=active`,
       {
-        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.accessToken}`,
-          'Content-Type': 'application/json',
+          'Authorization': authHeader,
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          jql: `project = ${projectKey} AND sprint in openSprints()`,
-          maxResults: 1,
-          fields: ['sprint'],
-        }),
       }
     );
 
-    if (currentSprintRes.ok) {
-      const currentSprintData = await currentSprintRes.json();
-      if (
-        currentSprintData.issues &&
-        currentSprintData.issues.length > 0 &&
-        currentSprintData.issues[0].fields &&
-        typeof currentSprintData.issues[0].fields.sprint !== 'undefined'
-      ) {
-        const sprintArray = currentSprintData.issues[0].fields.sprint;
-        if (Array.isArray(sprintArray) && sprintArray.length > 0) {
-          currentSprint = sprintArray[0];
-          console.log('Current sprint:', currentSprint?.name);
-        } else if (sprintArray && typeof sprintArray === 'object') {
-          currentSprint = sprintArray;
-          console.log('Current sprint (object):', currentSprint?.name);
-        } else {
-          console.warn('Current sprint field exists but is not array/object:', sprintArray);
-        }
+    if (activeSprintsRes.ok) {
+      const activeSprintsData = await activeSprintsRes.json();
+      console.log('Active sprints response:', JSON.stringify(activeSprintsData, null, 2));
+      
+      if (activeSprintsData.values && activeSprintsData.values.length > 0) {
+        currentSprint = activeSprintsData.values[0];
+        console.log('Found current sprint:', currentSprint?.name);
       } else {
-        console.warn('Current sprint JQL result missing fields.sprint:', JSON.stringify(currentSprintData.issues?.[0]?.fields, null, 2));
+        console.warn('No active sprint found in response');
       }
     } else {
-      console.log('Failed to fetch current sprint:', currentSprintRes.status);
-      const errorText = await currentSprintRes.text();
-      console.log('Current sprint fetch error:', errorText);
+      console.log('Failed to fetch active sprint:', activeSprintsRes.status);
+      const errorText = await activeSprintsRes.text();
+      console.log('Active sprint fetch error:', errorText);
+    }
+
+    // Return error if no active sprint found
+    if (!currentSprint) {
+      return NextResponse.json(
+        { error: 'No active sprint found', message: 'Please create or activate a sprint in JIRA to continue.' },
+        { status: 400 }
+      );
     }
 
     // 3. Fetch backlog
@@ -276,11 +234,11 @@ export async function GET(request: Request) {
     console.log('Fetching backlog with JQL:', jql);
     
     const backlogRes1 = await fetch(
-      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`,
+      `${jiraUrl}/rest/api/3/search/jql`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.accessToken}`,
+          'Authorization': authHeader,
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
@@ -366,10 +324,10 @@ export async function GET(request: Request) {
     let teamSize = 0;
     let teamMembers: any[] = [];
     const usersRes = await fetch(
-      `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/user/assignable/search?project=${projectKey}`,
+      `${jiraUrl}/rest/api/3/user/assignable/search?project=${projectKey}`,
       {
         headers: {
-          'Authorization': `Bearer ${session.accessToken}`,
+          'Authorization': authHeader,
           'Accept': 'application/json',
         },
       }

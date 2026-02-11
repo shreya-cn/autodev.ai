@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { ChartBarIcon, SparklesIcon, ExclamationCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { ChartBarIcon, SparklesIcon, ExclamationCircleIcon, CheckCircleIcon, DocumentChartBarIcon } from '@heroicons/react/24/outline';
 
 interface VelocityData {
   average: number;
@@ -82,6 +82,11 @@ export default function SprintPlanning() {
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
   const [triggering, setTriggering] = useState(false);
   const [triggerResult, setTriggerResult] = useState('');
+  const [reportDate, setReportDate] = useState<string>('');
+  const [minDate, setMinDate] = useState<string>('');
+  const [maxDate, setMaxDate] = useState<string>('');
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportMessage, setReportMessage] = useState<{ type: 'success' | 'error'; message: string; url?: string } | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -101,10 +106,73 @@ export default function SprintPlanning() {
       const result = await response.json();
       setData(result);
       setSelectedTickets(result.recommendations?.suggested_tickets || []);
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // Set date constraints based on sprint dates
+      if (result.currentSprint?.startDate && result.currentSprint?.endDate) {
+        const startDate = new Date(result.currentSprint.startDate).toISOString().split('T')[0];
+        const endDate = new Date(result.currentSprint.endDate).toISOString().split('T')[0];
+
+        // Allow selecting any date within the sprint period for testing
+        setMinDate(startDate);
+        setMaxDate(endDate);
+        setReportDate(today >= startDate && today <= endDate ? today : startDate);
+      } else {
+        // No active sprint - disable date picker by setting invalid range
+        setMinDate('');
+        setMaxDate('');
+        setReportDate('');
+      }
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching sprint data:', error);
       setLoading(false);
+    }
+  };
+
+  const generateSprintReport = async () => {
+    if (!reportDate) {
+      setReportMessage({ type: 'error', message: 'Please select a date' });
+      return;
+    }
+
+    setGeneratingReport(true);
+    setReportMessage(null);
+
+    try {
+      const response = await fetch('/api/jira/generate-sprint-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toDate: reportDate,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setReportMessage({
+          type: 'success',
+          message: 'Report generated successfully!',
+          url: result.confluence_url,
+        });
+      } else {
+        setReportMessage({
+          type: 'error',
+          message: result.error || 'Failed to generate report',
+        });
+      }
+    } catch (error) {
+      setReportMessage({
+        type: 'error',
+        message: 'Error generating report: ' + (error as Error).message,
+      });
+    } finally {
+      setGeneratingReport(false);
     }
   };
 
@@ -164,6 +232,69 @@ export default function SprintPlanning() {
           <p className="text-sm md:text-base lg:text-lg text-gray-300 leading-relaxed max-w-4xl">
             AI-powered sprint composition and capacity analysis
           </p>
+        </div>
+
+        {/* Sprint Progress Report Generator */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8 border-l-4 border-primary">
+          {!data?.currentSprint ? (
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg mb-4">
+              <p className="text-sm font-medium">⚠️ No active sprint found</p>
+              <p className="text-xs mt-1">Create or activate a sprint in JIRA to generate progress reports</p>
+            </div>
+          ) : null}
+          <div className="flex flex-col md:flex-row md:items-end gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Generate Sprint Progress Report
+              </label>
+              <p className="text-sm text-gray-600 mb-3">
+                Create a comprehensive progress report from sprint start to a specific date
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="date"
+                  value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)}
+                  min={minDate}
+                  max={maxDate}
+                  disabled={!data?.currentSprint}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900 font-medium disabled:bg-gray-200 disabled:cursor-not-allowed disabled:text-gray-500"
+                  style={{ colorScheme: 'light' }}
+                />
+                <button
+                  onClick={generateSprintReport}
+                  disabled={generatingReport}
+                  className="px-6 py-2 bg-primary text-dark font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 transition flex items-center justify-center gap-2 whitespace-nowrap"
+                >
+                  <DocumentChartBarIcon className="h-5 w-5" />
+                  {generatingReport ? 'Generating...' : 'Generate Report'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Report Status Message */}
+          {reportMessage && (
+            <div className={`mt-4 p-4 rounded-lg ${
+              reportMessage.type === 'success'
+                ? 'bg-green-50 text-green-800 border border-green-200'
+                : 'bg-red-50 text-red-800 border border-red-200'
+            }`}>
+              <p className="text-sm font-medium">
+                {reportMessage.type === 'success' ? '✅' : '❌'} {reportMessage.message}
+              </p>
+              {reportMessage.type === 'success' && reportMessage.url && (
+                <a
+                  href={reportMessage.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold underline mt-2 inline-block hover:opacity-80"
+                >
+                  View Report in Confluence →
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Metrics Cards */}
