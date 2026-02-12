@@ -145,12 +145,16 @@ export default function SupportAnalyticsDashboard() {
   const filteredTickets = getFilteredTickets();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-black px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
+      <main className="max-w-7xl mx-auto">
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Support Issues Analytics</h1>
-          <p className="text-gray-600">Track and monitor AI-analyzed support tickets across your team</p>
+        <div className="rounded-2xl px-7 py-7 text-white shadow-xl mb-8 border border-green-500/20" style={{background: 'linear-gradient(135deg, #1a1a1a 0%, #2d4a2e 50%, #1a1a1a 100%)'}}>
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 leading-tight">
+            <span style={{color: '#b9ff66'}}>Support Issues</span> Analytics
+          </h1>
+          <p className="text-sm md:text-base lg:text-lg text-gray-300 leading-relaxed max-w-4xl">
+            Track and monitor AI-analyzed support tickets across your team
+          </p>
         </div>
 
         {/* Stats Grid */}
@@ -181,27 +185,27 @@ export default function SupportAnalyticsDashboard() {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">🔍 Filters & Search</h2>
+        <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6 mb-8">
+          <h2 className="text-lg font-semibold text-white mb-4">Filters & Search</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Search</label>
               <input
                 type="text"
                 placeholder="Ticket ID or summary..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 bg-gray-800 text-white placeholder-gray-500"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 bg-gray-800 text-white"
               >
                 <option value="all">All Status</option>
                 <option value="Open">Open</option>
@@ -211,86 +215,89 @@ export default function SupportAnalyticsDashboard() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Analysis</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Analysis</label>
               <select
                 value={filterAnalyzed}
                 onChange={(e) => setFilterAnalyzed(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 bg-gray-800 text-white"
               >
                 <option value="all">All Tickets</option>
-                <option value="analyzed">✅ Analyzed</option>
-                <option value="pending">⏳ Pending</option>
+                <option value="analyzed">Analyzed</option>
+                <option value="pending">Pending</option>
               </select>
             </div>
 
             <div className="flex items-end">
               <button
                 onClick={fetchAnalyzedTickets}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                className="w-full px-4 py-2 rounded-lg transition font-medium hover:opacity-90"
+                style={{backgroundColor: '#b9ff66', color: '#000'}}
               >
-                🔄 Refresh
+                Refresh
               </button>
             </div>
           </div>
         </div>
 
         {/* Tickets Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
-              📋 Issues ({filteredTickets.length})
+        <div className="bg-gray-900 border border-green-500/20 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-green-500/20">
+            <h2 className="text-lg font-semibold text-white">
+              Issues ({filteredTickets.length})
             </h2>
           </div>
 
           {loading ? (
             <div className="p-8 text-center">
-              <div className="inline-block animate-spin">🔄</div>
-              <p className="text-gray-600 mt-2">Loading tickets...</p>
+              <div className="inline-block animate-spin text-2xl" style={{color: '#b9ff66'}}>↻</div>
+              <p className="text-gray-400 mt-2">Loading tickets...</p>
             </div>
           ) : error ? (
-            <div className="p-8 text-center text-red-600">
-              <p>❌ {error}</p>
+            <div className="p-8 text-center">
+              <p style={{color: '#b9ff66'}}>{error}</p>
               <button
                 onClick={fetchAnalyzedTickets}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="mt-4 px-4 py-2 rounded hover:opacity-90"
+                style={{backgroundColor: '#b9ff66', color: '#000'}}
               >
                 Retry
               </button>
             </div>
           ) : filteredTickets.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className="p-8 text-center text-gray-400">
               <p>No tickets found</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-gray-800 border-b border-green-500/20">
                   <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">ID</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Summary</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Priority</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Assignee</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Analyzed</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Created</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Action</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">ID</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Summary</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Status</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Priority</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Assignee</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Analyzed</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Created</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-800">
                   {filteredTickets.map((ticket) => (
-                    <tr key={ticket.id} className="hover:bg-gray-50 transition">
+                    <tr key={ticket.id} className="hover:bg-gray-800 transition">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <a
                           href={`https://auto-dev.atlassian.net/browse/${ticket.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 font-medium"
+                          className="font-medium hover:opacity-80"
+                          style={{color: '#b9ff66'}}
                         >
                           {ticket.id}
                         </a>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900 max-w-xs truncate">{ticket.summary}</div>
+                        <div className="text-sm text-gray-300 max-w-xs truncate">{ticket.summary}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
@@ -303,20 +310,20 @@ export default function SupportAnalyticsDashboard() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
+                        <div className="text-sm text-gray-300">
                           {ticket.assignee === 'Unassigned' ? (
-                            <span className="text-gray-400 italic">Unassigned</span>
+                            <span className="text-gray-500 italic">Unassigned</span>
                           ) : (
                             <span>{ticket.assignee}</span>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`text-sm font-medium ${ticket.analyzed ? 'text-green-600' : 'text-yellow-600'}`}>
-                          {ticket.analyzed ? '✅ Yes' : '⏳ Pending'}
+                        <span className={`text-sm font-medium ${ticket.analyzed ? 'text-green-400' : 'text-yellow-400'}`}>
+                          {ticket.analyzed ? 'Yes' : 'Pending'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                         {formatDate(ticket.created)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -324,7 +331,8 @@ export default function SupportAnalyticsDashboard() {
                           href={`https://auto-dev.atlassian.net/browse/${ticket.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          className="text-sm font-medium hover:opacity-80"
+                          style={{color: '#b9ff66'}}
                         >
                           View →
                         </a>
@@ -362,14 +370,14 @@ export default function SupportAnalyticsDashboard() {
         )}
 
         {/* Help Section */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-2">💡 How This Works</h3>
-          <ul className="text-blue-800 space-y-1 text-sm">
-            <li>✅ When a ticket is created in the AS project, the system automatically analyzes it</li>
-            <li>✅ AI identifies category, severity, and root causes</li>
-            <li>✅ Structured analysis is posted as a comment in the JIRA ticket</li>
-            <li>✅ Developer is auto-assigned based on expertise matching</li>
-            <li>✅ This dashboard shows all analyzed tickets and team metrics</li>
+        <div className="mt-8 bg-gray-900 border border-green-500/20 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-2">How This Works</h3>
+          <ul className="text-gray-300 space-y-1 text-sm">
+            <li>When a ticket is created in the AS project, the system automatically analyzes it</li>
+            <li>AI identifies category, severity, and root causes</li>
+            <li>Structured analysis is posted as a comment in the JIRA ticket</li>
+            <li>Developer is auto-assigned based on expertise matching</li>
+            <li>This dashboard shows all analyzed tickets and team metrics</li>
           </ul>
         </div>
       </main>
@@ -386,10 +394,10 @@ interface StatCardProps {
 
 function StatCard({label, value, color, subtext }: StatCardProps) {
   return (
-    <div className={`bg-gradient-to-br ${color} rounded-lg shadow p-6 text-white`}>
-      <p className="text-white/80 text-sm font-medium">{label}</p>
-      <p className="text-3xl font-bold mt-1">{value}</p>
-      {subtext && <p className="text-white/60 text-xs mt-2">{subtext}</p>}
+    <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
+      <p className="text-gray-400 text-sm font-medium">{label}</p>
+      <p className="text-3xl font-bold mt-1" style={{color: '#b9ff66'}}>{value}</p>
+      {subtext && <p className="text-gray-500 text-xs mt-2">{subtext}</p>}
     </div>
   );
 }
@@ -403,10 +411,10 @@ interface InsightCardProps {
 
 function InsightCard({ title, value, description, color }: InsightCardProps) {
   return (
-    <div className={`bg-gradient-to-br ${color} rounded-lg shadow p-6 text-white`}>
-      <h4 className="font-semibold mb-2">{title}</h4>
-      <p className="text-3xl font-bold mb-2">{value}</p>
-      <p className="text-white/80 text-sm">{description}</p>
+    <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
+      <h4 className="font-semibold mb-2 text-gray-300">{title}</h4>
+      <p className="text-3xl font-bold mb-2" style={{color: '#b9ff66'}}>{value}</p>
+      <p className="text-gray-400 text-sm">{description}</p>
     </div>
   );
 }

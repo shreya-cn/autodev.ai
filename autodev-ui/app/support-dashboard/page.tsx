@@ -139,15 +139,14 @@ export default function SupportDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-white px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
+    <div className="min-h-screen bg-black px-6 md:px-10 lg:px-16 xl:px-24 py-6 md:py-8 lg:py-10">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-dark rounded-2xl px-6 md:px-10 py-8 md:py-12 text-white shadow-xl mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-3 flex items-center gap-3">
-            <SparklesIcon className="h-10 w-10 text-primary" />
-            <span className="text-primary">Support Ticket</span> Analyzer
+        <div className="rounded-2xl px-7 py-7 text-white shadow-xl mb-8 border border-green-500/20" style={{background: 'linear-gradient(135deg, #1a1a1a 0%, #2d4a2e 50%, #1a1a1a 100%)'}}>
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 leading-tight">
+            <span style={{color: '#b9ff66'}}>Support Ticket</span> Analyzer
           </h1>
-          <p className="text-gray-300">
+          <p className="text-sm md:text-base lg:text-lg text-gray-300 leading-relaxed max-w-4xl">
             AI-powered root cause analysis for support tickets with automatic developer assignment
           </p>
         </div>
@@ -155,16 +154,17 @@ export default function SupportDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Input Form */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow p-6 sticky top-6">
+            <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6 sticky top-6">
               {/* Tab Selector */}
-              <div className="flex gap-2 mb-6 border-b border-gray-200">
+              <div className="flex gap-2 mb-6 border-b border-green-500/20">
                 <button
                   onClick={() => setActiveTab('jira')}
                   className={`px-4 py-2 font-semibold transition ${
                     activeTab === 'jira'
-                      ? 'text-primary border-b-2 border-primary'
-                      : 'text-gray-600 hover:text-gray-800'
+                      ? 'border-b-2' 
+                      : 'text-gray-400 hover:text-gray-200'
                   }`}
+                  style={activeTab === 'jira' ? {color: '#b9ff66', borderColor: '#b9ff66'} : {}}
                 >
                   From JIRA
                 </button>
@@ -172,9 +172,10 @@ export default function SupportDashboard() {
                   onClick={() => setActiveTab('manual')}
                   className={`px-4 py-2 font-semibold transition ${
                     activeTab === 'manual'
-                      ? 'text-primary border-b-2 border-primary'
-                      : 'text-gray-600 hover:text-gray-800'
+                      ? 'border-b-2'
+                      : 'text-gray-400 hover:text-gray-200'
                   }`}
+                  style={activeTab === 'manual' ? {color: '#b9ff66', borderColor: '#b9ff66'} : {}}
                 >
                   Manual Entry
                 </button>
@@ -182,11 +183,11 @@ export default function SupportDashboard() {
 
               {activeTab === 'jira' ? (
                 <>
-                  <h2 className="text-xl font-bold text-dark mb-4">Analyze JIRA Ticket</h2>
+                  <h2 className="text-xl font-bold text-white mb-4">Analyze JIRA Ticket</h2>
                   
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-sm font-semibold text-gray-300 mb-2">
                         JIRA Ticket ID *
                       </label>
                       <input
@@ -194,9 +195,10 @@ export default function SupportDashboard() {
                         value={jiraTicketId}
                         onChange={(e) => setJiraTicketId(e.target.value.toUpperCase())}
                         placeholder="e.g., AUT-123, SUPPORT-45"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none font-mono text-dark bg-white placeholder-gray-500"
+                        className="w-full px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 outline-none font-mono text-white bg-gray-800 placeholder-gray-500"
+                        style={{focusRingColor: '#b9ff66'}}
                       />
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-400 mt-1">
                         Enter the JIRA ticket key from your board
                       </p>
                     </div>
@@ -209,7 +211,7 @@ export default function SupportDashboard() {
                         onChange={(e) => setUpdateJira(e.target.checked)}
                         className="w-4 h-4 text-primary rounded focus:ring-2 focus:ring-primary"
                       />
-                      <label htmlFor="updateJira" className="text-sm text-gray-700">
+                      <label htmlFor="updateJira" className="text-sm text-gray-300">
                         Add analysis as comment to JIRA ticket
                       </label>
                     </div>
@@ -217,13 +219,14 @@ export default function SupportDashboard() {
                     <button
                       onClick={handleAnalyzeJiraTicket}
                       disabled={analyzing}
-                      className="w-full px-6 py-3 bg-primary text-dark font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 transition"
+                      className="w-full px-6 py-3 font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 transition"
+                      style={{backgroundColor: '#b9ff66', color: '#000'}}
                     >
                       {analyzing ? 'Analyzing...' : 'Fetch & Analyze Ticket'}
                     </button>
 
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
-                      <strong>How it works:</strong>
+                    <div className="mt-4 p-3 bg-gray-800 border border-green-500/20 rounded text-xs text-gray-300">
+                      <strong style={{color: '#b9ff66'}}>How it works:</strong>
                       <ul className="mt-1 ml-4 list-disc space-y-1">
                         <li>Fetches ticket from JIRA with description & attachments</li>
                         <li>Analyzes error logs from attachments automatically</li>
@@ -235,11 +238,11 @@ export default function SupportDashboard() {
                 </>
               ) : (
                 <>
-                  <h2 className="text-xl font-bold text-dark mb-4">New Support Ticket</h2>
+                  <h2 className="text-xl font-bold text-white mb-4">New Support Ticket</h2>
                   
                   <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-300 mb-2">
                     Issue Summary *
                   </label>
                   <input
@@ -247,12 +250,12 @@ export default function SupportDashboard() {
                     value={ticketSummary}
                     onChange={(e) => setTicketSummary(e.target.value)}
                     placeholder="e.g., Login page shows blank"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    className="w-full px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 outline-none bg-gray-800 text-white placeholder-gray-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-300 mb-2">
                     Description
                   </label>
                   <textarea
@@ -260,12 +263,12 @@ export default function SupportDashboard() {
                     onChange={(e) => setTicketDescription(e.target.value)}
                     placeholder="Detailed description of the issue..."
                     rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                    className="w-full px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 outline-none bg-gray-800 text-white placeholder-gray-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-300 mb-2">
                     Error Log/Stack Trace
                   </label>
                   <textarea
@@ -273,16 +276,17 @@ export default function SupportDashboard() {
                     onChange={(e) => setErrorLog(e.target.value)}
                     placeholder="Paste error logs here..."
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none font-mono text-xs"
+                    className="w-full px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 outline-none font-mono text-xs bg-gray-800 text-white placeholder-gray-500"
                   />
                 </div>
 
                 <button
                   onClick={handleAnalyze}
                   disabled={analyzing}
-                  className="w-full px-6 py-3 bg-primary text-dark font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 transition"
+                  className="w-full px-6 py-3 font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 transition"
+                  style={{backgroundColor: '#b9ff66', color: '#000'}}
                 >
-                  {analyzing ? 'Analyzing...' : '🤖 Analyze Ticket'}
+                  {analyzing ? 'Analyzing...' : 'Analyze Ticket'}
                 </button>
                   </div>
                 </>
@@ -302,13 +306,13 @@ export default function SupportDashboard() {
               <>
                 {/* JIRA Ticket Info (if from JIRA) */}
                 {(analysis as any).ticket_details && (
-                  <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+                  <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div>
-                        <h3 className="text-lg font-bold text-dark flex items-center gap-2">
-                          📋 JIRA Ticket Details
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          JIRA Ticket Details
                         </h3>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="text-sm text-gray-400 mt-1">
                           Fetched from {(analysis as any).ticket_key}
                         </p>
                       </div>
@@ -317,7 +321,8 @@ export default function SupportDashboard() {
                           href={(analysis as any).ticket_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-sm font-semibold"
+                          className="px-4 py-2 rounded-lg hover:opacity-90 transition text-sm font-semibold"
+                          style={{backgroundColor: '#b9ff66', color: '#000'}}
                         >
                           View in JIRA →
                         </a>
@@ -325,28 +330,28 @@ export default function SupportDashboard() {
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="font-semibold text-gray-700">Summary:</span>
-                        <p className="text-gray-600 mt-1">{(analysis as any).ticket_details.summary}</p>
+                        <span className="font-semibold text-gray-300">Summary:</span>
+                        <p className="text-gray-400 mt-1">{(analysis as any).ticket_details.summary}</p>
                       </div>
                       <div>
-                        <span className="font-semibold text-gray-700">Status:</span>
-                        <p className="text-gray-600 mt-1">{(analysis as any).ticket_details.status}</p>
+                        <span className="font-semibold text-gray-300">Status:</span>
+                        <p className="text-gray-400 mt-1">{(analysis as any).ticket_details.status}</p>
                       </div>
                       <div>
-                        <span className="font-semibold text-gray-700">Reporter:</span>
-                        <p className="text-gray-600 mt-1">{(analysis as any).ticket_details.reporter.name}</p>
+                        <span className="font-semibold text-gray-300">Reporter:</span>
+                        <p className="text-gray-400 mt-1">{(analysis as any).ticket_details.reporter.name}</p>
                       </div>
                       <div>
-                        <span className="font-semibold text-gray-700">Priority:</span>
-                        <p className="text-gray-600 mt-1">{(analysis as any).ticket_details.priority}</p>
+                        <span className="font-semibold text-gray-300">Priority:</span>
+                        <p className="text-gray-400 mt-1">{(analysis as any).ticket_details.priority}</p>
                       </div>
                       {(analysis as any).ticket_details.attachments?.length > 0 && (
                         <div className="col-span-2">
-                          <span className="font-semibold text-gray-700">Attachments:</span>
+                          <span className="font-semibold text-gray-300">Attachments:</span>
                           <ul className="mt-1 space-y-1">
                             {(analysis as any).ticket_details.attachments.map((att: any, i: number) => (
-                              <li key={i} className="text-xs text-gray-600">
-                                📎 {att.filename} ({Math.round(att.size / 1024)}KB)
+                              <li key={i} className="text-xs text-gray-400">
+                                {att.filename} ({Math.round(att.size / 1024)}KB)
                               </li>
                             ))}
                           </ul>
@@ -354,8 +359,10 @@ export default function SupportDashboard() {
                       )}
                       {(analysis as any).jira_updated && (
                         <div className="col-span-2">
-                          <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
-                            ✅ Analysis added to JIRA ticket
+                          <span className="px-3 py-1 rounded-full text-xs font-semibold"
+                            style={{backgroundColor: '#b9ff66', color: '#000'}}
+                          >
+                            Analysis added to JIRA ticket
                           </span>
                         </div>
                       )}
@@ -364,8 +371,8 @@ export default function SupportDashboard() {
                 )}
 
                 {/* Summary */}
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h2 className="text-2xl font-bold text-dark mb-4">Analysis Results</h2>
+                <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
+                  <h2 className="text-2xl font-bold text-white mb-4">Analysis Results</h2>
                   
                   <div className={`p-4 rounded-lg mb-4 ${getSeverityColor(analysis.support_analysis.severity)}`}>
                     <div className="flex items-start justify-between">
@@ -382,23 +389,23 @@ export default function SupportDashboard() {
                 </div>
 
                 {/* Suggested Developer */}
-                <div className="bg-white rounded-lg shadow p-6 border-l-4 border-primary">
-                  <h3 className="text-lg font-bold text-dark mb-3">👨‍💻 Suggested Developer</h3>
+                <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-white mb-3">Suggested Developer</h3>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-dark text-lg">{analysis.developer_suggestion.suggested_developer}</span>
-                      <span className="text-sm bg-green-100 text-green-900 font-bold px-3 py-1 rounded-full">
+                      <span className="font-semibold text-white text-lg">{analysis.developer_suggestion.suggested_developer}</span>
+                      <span className="text-sm font-bold px-3 py-1 rounded-full" style={{backgroundColor: '#b9ff66', color: '#000'}}>
                         {analysis.developer_suggestion.confidence}% match
                       </span>
                     </div>
-                    <p className="text-sm text-gray-900 font-medium">{analysis.developer_suggestion.reason}</p>
+                    <p className="text-sm text-gray-300 font-medium">{analysis.developer_suggestion.reason}</p>
                     {(analysis.developer_suggestion.matching_files?.length ?? 0) > 0 && (
-                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                        <p className="text-xs font-bold text-gray-900 mb-2">Related Files:</p>
+                      <div className="mt-3 p-3 bg-gray-800 border border-green-500/20 rounded">
+                        <p className="text-xs font-bold text-gray-300 mb-2">Related Files:</p>
                         <ul className="space-y-1">
                           {(analysis.developer_suggestion.matching_files || []).slice(0, 3).map((file, i) => (
-                            <li key={i} className="text-xs text-gray-800 font-mono font-semibold">
-                              📄 {file}
+                            <li key={i} className="text-xs text-gray-400 font-mono font-semibold">
+                              {file}
                             </li>
                           ))}
                         </ul>
@@ -408,51 +415,51 @@ export default function SupportDashboard() {
                 </div>
 
                 {/* Code Areas to Check */}
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-bold text-dark mb-4 flex items-center gap-2">
-                    <ExclamationTriangleIcon className="h-6 w-6 text-orange-500" />
+                <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <ExclamationTriangleIcon className="h-6 w-6" style={{color: '#b9ff66'}} />
                     Code Areas to Check
                   </h3>
                   <div className="space-y-2">
                     {(analysis.support_analysis.suggested_code_areas?.length ?? 0) > 0 ? (
                       (analysis.support_analysis.suggested_code_areas || []).map((area, i) => (
-                        <div key={i} className="p-3 bg-blue-50 border border-blue-200 rounded font-mono text-sm text-blue-900">
-                          📍 {area}
+                        <div key={i} className="p-3 bg-gray-800 border border-green-500/20 rounded font-mono text-sm text-gray-300">
+                          {area}
                         </div>
                       ))
                     ) : (
-                      <p className="text-gray-600">No specific code areas identified</p>
+                      <p className="text-gray-400">No specific code areas identified</p>
                     )}
                   </div>
                 </div>
 
                 {/* Root Causes */}
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-bold text-dark mb-4 flex items-center gap-2">
-                    <CheckCircleIcon className="h-6 w-6 text-green-500" />
+                <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <CheckCircleIcon className="h-6 w-6" style={{color: '#b9ff66'}} />
                     Suspected Root Causes
                   </h3>
                   <ol className="space-y-2">
                     {(analysis.support_analysis.suspected_root_causes?.length ?? 0) > 0 ? (
                       (analysis.support_analysis.suspected_root_causes || []).map((cause, i) => (
-                        <li key={i} className="p-3 bg-yellow-100 border-l-4 border-yellow-500 text-sm text-gray-900 font-medium">
-                          <strong className="text-gray-900">{i + 1}.</strong> {cause}
+                        <li key={i} className="p-3 bg-gray-800 border-l-4 text-sm text-gray-300 font-medium" style={{borderColor: '#b9ff66'}}>
+                          <strong className="text-white">{i + 1}.</strong> {cause}
                         </li>
                       ))
                     ) : (
-                      <li className="text-gray-700">No specific root causes identified</li>
+                      <li className="text-gray-400">No specific root causes identified</li>
                     )}
                   </ol>
                 </div>
 
                 {/* Recommended Actions */}
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-bold text-dark mb-4">💡 Recommended Actions</h3>
+                <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-white mb-4">Recommended Actions</h3>
                   <ol className="space-y-2">
                     {(analysis.recommended_actions || []).map((action, i) => (
                       <li key={i} className="flex gap-3">
-                        <span className="font-semibold text-primary font-bold">{i + 1}.</span>
-                        <span className="text-gray-800 font-medium">{action}</span>
+                        <span className="font-semibold font-bold" style={{color: '#b9ff66'}}>{i + 1}.</span>
+                        <span className="text-gray-300 font-medium">{action}</span>
                       </li>
                     ))}
                   </ol>
@@ -460,17 +467,17 @@ export default function SupportDashboard() {
 
                 {/* Recent Changes */}
                 {(analysis.github_analysis.recent_changes?.length ?? 0) > 0 && (
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <h3 className="text-lg font-bold text-dark mb-4">📝 Recent Code Changes</h3>
+                  <div className="bg-gray-900 border border-green-500/20 rounded-xl p-6">
+                    <h3 className="text-lg font-bold text-white mb-4">Recent Code Changes</h3>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {(analysis.github_analysis.recent_changes || []).slice(0, 5).map((commit, i) => (
-                        <div key={i} className="p-3 bg-gray-50 border border-gray-200 rounded text-sm">
-                          <p className="font-semibold text-dark">{commit.message}</p>
-                          <p className="text-xs text-gray-600 mt-1">by {commit.author}</p>
+                        <div key={i} className="p-3 bg-gray-800 border border-green-500/20 rounded text-sm">
+                          <p className="font-semibold text-white">{commit.message}</p>
+                          <p className="text-xs text-gray-400 mt-1">by {commit.author}</p>
                           <div className="mt-2 space-y-1">
                             {commit.files?.slice(0, 2).map((file: any, j: number) => (
-                              <p key={j} className="text-xs text-gray-500 font-mono ml-3">
-                                • {file.name}
+                              <p key={j} className="text-xs text-gray-400 font-mono ml-3">
+                                {file.name}
                               </p>
                             ))}
                           </div>
@@ -481,8 +488,8 @@ export default function SupportDashboard() {
                 )}
               </>
             ) : (
-              <div className="bg-gray-50 rounded-lg p-12 text-center">
-                <p className="text-gray-600">
+              <div className="bg-gray-900 border border-green-500/20 rounded-xl p-12 text-center">
+                <p className="text-gray-400">
                   Enter a support ticket summary and click "Analyze Ticket" to get AI-powered insights
                 </p>
               </div>
