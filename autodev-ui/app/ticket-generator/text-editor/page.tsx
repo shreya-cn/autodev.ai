@@ -95,23 +95,23 @@ export default function TextEditorTicketGenerator() {
       }),
     });
 
-    console.log("<<RR>>", res);
     const data = await res.json();
-    console.log("<<RR>>", data);
     return data;
   }
 
   const handleCreateTicket = async () => {
     if (!generatedTicket) return;
+    
+    setIsCreating(true);
+    setError("");
+    setSuccess("");
+    
     const autoAssigneeDes = await generate({
       summary: generatedTicket.summary,
       description: generatedTicket.description,
       issueType: generatedTicket.suggestedType,
     });
 
-    setIsCreating(true);
-    setError("");
-    setSuccess("");
 
     const updatedTicket = {
       ...generatedTicket,
