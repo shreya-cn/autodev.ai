@@ -101,22 +101,35 @@ export default function TextEditorTicketGenerator() {
 
   const handleCreateTicket = async () => {
     if (!generatedTicket) return;
-    
+
     setIsCreating(true);
     setError("");
     setSuccess("");
-    
+
     const autoAssigneeDes = await generate({
       summary: generatedTicket.summary,
       description: generatedTicket.description,
       issueType: generatedTicket.suggestedType,
     });
 
+    const res = await fetch("/api/jira/get-fields", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const fields = await res.json();
+    const recommendedField = fields.find(
+      (item: any) => item.name === "Recommended Assignee",
+    );
+    const recommendedFieldId = recommendedField.id;
 
     const updatedTicket = {
       ...generatedTicket,
       summary: `[Recommended-Assignee] ${generatedTicket.summary}`,
-      description: `${generatedTicket.description}\n\n${autoAssigneeDes}`,
+      recommendedFieldId: recommendedFieldId,
+      autoAssigneeDes:autoAssigneeDes,
     };
 
     try {
