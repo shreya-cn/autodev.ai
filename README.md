@@ -1,5 +1,28 @@
 # AutoDoc.ai Project
 
+## Quick Setup (For Developers)
+
+**New users must run this first to install dependencies and fix CORS errors:**
+
+```bash
+chmod +x setup.sh start-stack.sh
+./setup.sh
+```
+Or
+Manual command - python3 -m pip install -r requirements.txt
+
+Then start the services:
+- **Full Stack (One Command)**: `./start-stack.sh`
+- **Backend**: `python3 support_ticket_api.py` (port 5000)
+- **Frontend**: `cd autodev-ui && npm run dev` (port 3000)
+
+**Documentation:**
+- 📖 [Quick Start Guide](./QUICK_START.md) - Get running in 5 minutes
+- 🔧 [Backend Setup](./BACKEND_SETUP.md) - Full configuration & troubleshooting
+- 📋 [Microservices Docs](./documentation/) - Architecture details
+
+---
+
 ## Overview
 
 The AutoDoc.ai project is a prototype designed to automate the generation of documentation for microservices. It leverages AI models, such as OpenAI's GPT, and integrates with tools like Jira to streamline the documentation process. The project includes multiple microservices, each serving a specific purpose, and a central MCP (Model Context Protocol) server to coordinate the documentation generation.
