@@ -7,4 +7,5 @@ import com.vm.usermanagement.entity.MobilityUser;
 
 public interface UserManagementRepository extends JpaRepository<MobilityUser, Long> {
     Optional<MobilityUser> findByUsername(String username);
+    Optional<MobilityUser> findById(Long id);
 }

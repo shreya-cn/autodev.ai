@@ -6,9 +6,8 @@ The Usermanagement service provides API operations for managing usermanagement d
 
 NOTE: A source block marked with class openapi will be wrapped in an OpenAPI Documentation Macro. (see https://marketplace.atlassian.com/apps/1215176/open-api-documentation-for-confluence?hosting=cloud&tab=overview[Open API Documentation for Confluence])!
 
-[source,openapi]
+[source.openapi,yaml]
 ----
-```yaml
 openapi: 3.0.0
 info:
   title: User Management API
@@ -22,19 +21,19 @@ paths:
         - User Management
       summary: Onboard a new user
       operationId: onboardUser
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                username:
-                  type: string
-                  example: "john_doe"
-                password:
-                  type: string
-                  example: "s3cr3t"
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "john_doe"
+        - name: password
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "securePassword123"
       responses:
         '200':
           description: User onboarded successfully
@@ -42,7 +41,7 @@ paths:
             text/plain:
               schema:
                 type: string
-                example: "User onboarded successfully"
+              example: "User onboarded successfully"
         '400':
           description: Bad request
   /user-management/assign-vehicle:
@@ -51,25 +50,31 @@ paths:
         - User Management
       summary: Assign a vehicle to a user
       operationId: assignVehicle
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                username:
-                  type: string
-                  example: "john_doe"
-                vin:
-                  type: string
-                  example: "1HGCM82633A004352"
-                brand:
-                  type: string
-                  example: "Toyota"
-                country:
-                  type: string
-                  example: "USA"
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "john_doe"
+        - name: vin
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "1HGCM82633A004352"
+        - name: brand
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "Toyota"
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "USA"
       responses:
         '200':
           description: Vehicle assigned successfully
@@ -77,7 +82,7 @@ paths:
             text/plain:
               schema:
                 type: string
-                example: "Vehicle assigned successfully"
+              example: "Vehicle assigned successfully"
         '400':
           description: Bad request
 components:
@@ -91,7 +96,7 @@ components:
           example: 1
         mobilityUserId:
           type: string
-          example: "MU12345"
+          example: "MU123456"
         role:
           type: string
           example: "driver"
@@ -101,5 +106,10 @@ components:
         vin:
           type: string
           example: "1HGCM82633A004352"
-```
+      required:
+        - id
+        - mobilityUserId
+        - role
+        - username
+        - vin
 ----

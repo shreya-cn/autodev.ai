@@ -1,151 +1,120 @@
 = User Management System Architecture Design
 
-== 1. Service Architecture Overview
+== Service Architecture Overview
 
 === High-level System Architecture Diagram
 
 [plantuml, diagram-architecture, png]
-----
+....
 @startuml
-!define SPRING #SpringGreen
-!define ENTITY #MistyRose
-!define CONTROLLER #DeepSkyBlue
-!define SERVICE #Gold
-
 package "User Management System" {
-  [UsermanagementApplication] << SPRING >>
-  [UserManagementController] << CONTROLLER >>
-  [UserManagementService] << SERVICE >>
-  [UserManagementRepository] << SPRING >>
-  [MobilityUser] << ENTITY >>
-
-  UsermanagementApplication --> UserManagementController
-  UserManagementController --> UserManagementService
-  UserManagementService --> UserManagementRepository
-  UserManagementService --> IdentityProviderClient
-  UserManagementService --> VehicleManagementClient
-  UserManagementRepository --> MobilityUser
+  [UserManagementApplication] as UMA
+  [UserManagementController] as UMC
+  [UserManagementService] as UMS
+  [UserManagementRepository] as UMR
+  [MobilityUser] as MU
 }
 
-[IdentityProviderClient] << SPRING >>
-[VehicleManagementClient] << SPRING >>
-
-cloud {
-  [Identity Provider API] << API >>
-  [Vehicle Management API] << API >>
+package "External Systems" {
+  [IdentityProviderClient] as IPC
+  [VehicleManagementClient] as VMC
 }
 
-IdentityProviderClient --> Identity Provider API
-VehicleManagementClient --> Vehicle Management API
-
+UMA --> UMC : uses
+UMC --> UMS : uses
+UMS --> UMR : uses
+UMS --> IPC : uses
+UMS --> VMC : uses
+UMR --> MU : manages
 @enduml
-----
+....
 
 === External System Connections and Integrations
 
-- **Identity Provider API**: This external system handles user authentication and authorization. It is integrated via `IdentityProviderClient` using Feign client.
-- **Vehicle Management API**: This external system manages vehicle data. It is integrated via `VehicleManagementClient` also using Feign client.
+The User Management System integrates with the following external systems:
+
+- *Identity Provider*: Manages authentication and user identity.
+- *Vehicle Management System*: Manages vehicle-related operations.
 
 === Component Interaction Overview
 
-- **UserManagementController**: Handles HTTP requests and communicates with `UserManagementService` for business operations.
-- **UserManagementService**: Core service layer handling business logic, interacts with `UserManagementRepository` for database operations and external systems through Feign clients.
-- **UserManagementRepository**: Manages database interactions for user data.
+The `UserManagementController` receives HTTP requests and interacts with the `UserManagementService` to process business logic. The service layer manages data persistence through `UserManagementRepository` and communicates with external systems via clients like `IdentityProviderClient` and `VehicleManagementClient`.
 
 === Technology Stack and Frameworks Used
 
-- **Spring Boot**: Framework for creating stand-alone, production-grade Spring based applications.
-- **Spring Data JPA**: For database operations.
-- **Spring Cloud OpenFeign**: For declarative REST client creation.
-- **H2 Database**: In-memory database for development.
-- **JUnit**: For unit testing.
+- **Programming Language**: Java
+- **Framework**: Spring Boot, including Spring MVC for REST controllers and Spring Data JPA for data persistence.
+- **Client Communication**: Feign clients for REST-based communication with external services.
 
-== 2. Component Description
+== Component Description
 
-=== UsermanagementApplication
+=== UserManagementApplication
 
-- **Responsibility**: Bootstraps the Spring Boot application.
-- **Role**: Entry point of the application.
+The entry point of the Spring Boot application, responsible for bootstrapping the application.
+
+=== IdentityProviderClient
+
+A Feign client that communicates with the external Identity Provider to handle user authentication and authorization.
+
+=== VehicleManagementClient
+
+A Feign client responsible for interacting with the Vehicle Management System to perform operations related to vehicles.
 
 === UserManagementController
 
-- **Responsibility**: Handles all web requests and delegates to the service layer.
-- **Role**: Web layer component, translates HTTP requests into service calls.
-
-=== UserManagementService
-
-- **Responsibility**: Handles business logic for user and vehicle management.
-- **Role**: Service layer component, interacts with database and external APIs.
-
-=== UserManagementRepository
-
-- **Responsibility**: Abstraction over the data access layer.
-- **Role**: Data access component using Spring Data JPA.
+A REST controller that exposes HTTP endpoints for user and vehicle management operations such as user onboarding and vehicle assignment.
 
 === MobilityUser
 
-- **Responsibility**: Represents the user entity in the system.
-- **Role**: Domain model, mapped to a database table via JPA.
+An entity representing a user in the system, managed by `UserManagementRepository`.
 
-== 3. Infrastructure Architecture
+=== UserManagementRepository
+
+Spring Data JPA repository for accessing the database and performing CRUD operations on the `MobilityUser` entity.
+
+=== UserManagementService
+
+Service layer that contains business logic for managing users and vehicles. It interacts with `UserManagementRepository` and external clients (`IdentityProviderClient` and `VehicleManagementClient`).
+
+== Infrastructure Architecture
 
 === Deployment Architecture
 
-[plantuml, diagram-deployment, png]
-----
-@startuml
-node "Web Server" {
-  [User Management Application]
-}
-
-database "Database" {
-  [User Data]
-}
-
-User Management Application --> Database : JDBC
-@enduml
-----
+The application is containerized using Docker, allowing it to be deployed on any Docker-compatible environment, including Kubernetes clusters for orchestration.
 
 === Database Architecture
 
-- **Database System**: H2 in-memory database.
-- **Schema Details**: Consists of the `MobilityUser` table.
+The system uses a relational database (e.g., PostgreSQL) for storing user data. The database schema is managed through Hibernate ORM with Spring Data JPA integration.
 
 === Security Architecture
 
-- **Authentication**: Integrated with an external Identity Provider.
-- **Authorization**: Managed through roles stored in the user entity.
+Security is enforced through Spring Security, integrating with the Identity Provider for OAuth2 authentication and authorization.
 
 === Network Architecture
 
-- **Internal Network**: Communication between application components.
-- **External Network**: Secured connections to external APIs.
+The application is deployed within a VPC with controlled access to external systems. Communication between services is secured with TLS encryption.
 
-== 4. System Context
+== System Context
 
 === External Systems and Their Interfaces
 
-- **Identity Provider API**: Provides endpoints for user authentication.
-- **Vehicle Management API**: Provides endpoints for vehicle data retrieval.
+- *Identity Provider*:
+  - Interface: REST API
+  - Authentication: OAuth2
+- *Vehicle Management System*:
+  - Interface: REST API
+  - Used for retrieving and managing vehicle data.
 
 === Data Flow Between Systems
 
-[plantuml, diagram-data-flow, png]
-----
-@startuml
-actor User
-User -> UserManagementController : Requests (HTTP)
-UserManagementController -> UserManagementService : Delegates
-UserManagementService -> IdentityProviderClient : Auth Requests
-UserManagementService -> VehicleManagementClient : Vehicle Data Requests
-IdentityProviderClient -> Identity Provider API : API Calls
-VehicleManagementClient -> Vehicle Management API : API Calls
-@enduml
-----
+1. User data flows from `UserManagementController` to `UserManagementService` and then to `UserManagementRepository`.
+2. Authentication requests are sent from `UserManagementService` to `IdentityProviderClient`.
+3. Vehicle data requests are sent from `UserManagementService` to `VehicleManagementClient`.
 
 === Authentication and Authorization Flows at System Level
 
-- **Authentication Flow**: User credentials are validated against the Identity Provider API.
-- **Authorization Flow**: User roles are checked to grant access to specific resources or operations.
+Authentication is handled via OAuth2 tokens provided by the Identity Provider. The `UserManagementService` validates these tokens to ensure that only authenticated users can perform operations.
 
-This document provides a comprehensive overview of the architecture of the User Management System, suitable for understanding by architects and senior developers.
+== Conclusion
+
+This document provides a comprehensive overview of the architecture for the User Management System. It details the components, their interactions, external integrations, and the infrastructure setup, ensuring a clear understanding for architects and senior developers involved in the project.
