@@ -127,7 +127,7 @@ async function suggestAssignee(newIssue: any, profiles: any) {
 You are a Jira expert.
 
 Suggest the best assignees for the issue based on their experience.
-Write the response in a clean, professional format suitable to paste directly into a Jira description.
+Return a JSON object with the top recommended assignee and a detailed explanation.
 
 Issue Details:
 Summary: ${newIssue.summary}
@@ -137,19 +137,24 @@ Issue Type: ${newIssue.issueType}
 Assignee Profiles:
 ${JSON.stringify(profiles, null, 2)}
 
-Format the output like this:
+Return JSON in this exact format:
+{
+  "topAssignee": "Name of best match",
+  "matchLevel": "High" or "Medium" or "Low",
+  "reason": "Brief explanation of why this person is the best match",
+  "alternatives": [
+    {"name": "Alternative 1", "matchLevel": "High/Medium/Low", "reason": "Brief reason"},
+    {"name": "Alternative 2", "matchLevel": "High/Medium/Low", "reason": "Brief reason"}
+  ]
+}
 
-Recommended Assignees:
-1. Name – Short reason. (Profile Match: High/Medium/Low)
-2. Name – Short reason. (Profile Match: High/Medium/Low)
-
-Keep it concise and professional.
-Return only the formatted text.
+If no good match exists, set topAssignee to "Unassigned" with matchLevel "Low".
 `;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0.3,
+    response_format: { type: "json_object" },
     messages: [
       {
         role: "user",
@@ -158,7 +163,8 @@ Return only the formatted text.
     ],
   });
 
-  return response.choices[0].message.content || "";
+  const result = JSON.parse(response.choices[0].message.content || "{}");
+  return result;
 }
 
 /* =========================
@@ -174,7 +180,13 @@ export async function POST(req: Request) {
 
     const result = await suggestAssignee(body, profiles);
 
-    return NextResponse.json(result);
+    // Return structured response
+    return NextResponse.json({
+      recommendedAssignee: result.topAssignee || "Unassigned",
+      matchLevel: result.matchLevel || "Low",
+      reason: result.reason || "No specific match found",
+      alternatives: result.alternatives || []
+    });
   } catch (err: any) {
     console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });

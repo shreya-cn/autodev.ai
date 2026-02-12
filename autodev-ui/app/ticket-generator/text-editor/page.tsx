@@ -106,18 +106,11 @@ export default function TextEditorTicketGenerator() {
     setError("");
     setSuccess("");
     
-    const autoAssigneeDes = await generate({
+    const autoAssigneeData = await generate({
       summary: generatedTicket.summary,
       description: generatedTicket.description,
       issueType: generatedTicket.suggestedType,
     });
-
-
-    const updatedTicket = {
-      ...generatedTicket,
-      summary: `[Recommended-Assignee] ${generatedTicket.summary}`,
-      description: `${generatedTicket.description}\n\n${autoAssigneeDes}`,
-    };
 
     try {
       const response = await fetch("/api/jira/create-ticket", {
@@ -126,8 +119,12 @@ export default function TextEditorTicketGenerator() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...updatedTicket,
+          ...generatedTicket,
           createSubtasks,
+          recommendedAssignee: autoAssigneeData.recommendedAssignee,
+          assigneeMatchLevel: autoAssigneeData.matchLevel,
+          assigneeReason: autoAssigneeData.reason,
+          assigneeAlternatives: autoAssigneeData.alternatives,
         }),
       });
 

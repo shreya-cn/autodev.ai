@@ -24,7 +24,7 @@ interface MeetingMetadata {
 
 export default function MOMTranscriptionPage() {
   const { data: session, status } = useSession();
-  const [inputMethod, setInputMethod] = useState<'url' | 'file' | 'text'>('url');
+  const [inputMethod, setInputMethod] = useState<'url' | 'file' | 'text'>('text');
   const [meetingUrl, setMeetingUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [transcriptionText, setTranscriptionText] = useState('');
@@ -46,8 +46,12 @@ export default function MOMTranscriptionPage() {
       setFile(selectedFile);
       setError('');
       
-      // Read file content if it's a text file
-      if (selectedFile.type === 'text/plain' || selectedFile.name.endsWith('.txt')) {
+      // Read file content if it's a text file (.txt, .vtt, or .docx)
+      if (selectedFile.type === 'text/plain' || 
+          selectedFile.name.endsWith('.txt') || 
+          selectedFile.name.endsWith('.vtt') ||
+          selectedFile.name.endsWith('.docx') ||
+          selectedFile.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
         const reader = new FileReader();
         reader.onload = (event) => {
           setTranscriptionText(event.target?.result as string || '');
@@ -216,19 +220,19 @@ export default function MOMTranscriptionPage() {
           {/* Input Method Selector */}
           <div className="flex gap-4 mb-6">
             <button
-              onClick={() => setInputMethod('url')}
+              onClick={() => setInputMethod('text')}
               className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-                inputMethod === 'url'
+                inputMethod === 'text'
                   ? 'bg-gray-700 text-white border-2'
                   : 'bg-gray-800 text-gray-400 border border-gray-600 hover:bg-gray-700'
               }`}
-              style={inputMethod === 'url' ? {borderColor: '#b9ff66'} : {}}
+              style={inputMethod === 'text' ? {borderColor: '#b9ff66'} : {}}
             >
               <div className="flex items-center justify-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Meeting URL
+                Paste Text
               </div>
             </button>
             <button
@@ -248,40 +252,39 @@ export default function MOMTranscriptionPage() {
               </div>
             </button>
             <button
-              onClick={() => setInputMethod('text')}
+              onClick={() => setInputMethod('url')}
               className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-                inputMethod === 'text'
+                inputMethod === 'url'
                   ? 'bg-gray-700 text-white border-2'
                   : 'bg-gray-800 text-gray-400 border border-gray-600 hover:bg-gray-700'
               }`}
-              style={inputMethod === 'text' ? {borderColor: '#b9ff66'} : {}}
+              style={inputMethod === 'url' ? {borderColor: '#b9ff66'} : {}}
             >
               <div className="flex items-center justify-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
-                Paste Text
+                Meeting URL
               </div>
             </button>
           </div>
 
-          {/* URL Input */}
-          {inputMethod === 'url' && (
+          {/* Text Input */}
+          {inputMethod === 'text' && (
             <div className="mb-4">
-              <label htmlFor="meeting-url" className="block text-sm font-medium text-gray-300 mb-2">
-                Meeting Recording URL
+              <label htmlFor="transcription" className="block text-sm font-medium text-gray-300 mb-2">
+                Paste Transcription Text
               </label>
-              <input
-                id="meeting-url"
-                type="url"
-                value={meetingUrl}
-                onChange={(e) => setMeetingUrl(e.target.value)}
-                placeholder="https://teams.microsoft.com/l/meetup-join/..."
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-200 placeholder-gray-500"
+              <textarea
+                id="transcription"
+                value={transcriptionText}
+                onChange={(e) => setTranscriptionText(e.target.value)}
+                placeholder="Paste your Teams meeting transcript here...&#10;&#10;Example format:&#10;Action item 1: Fix the login API that's not working&#10;Action item 2: Investigate the database connection timeout issue"
+                className="w-full h-60 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none text-gray-200 placeholder-gray-500 font-mono text-sm"
                 disabled={isProcessing}
               />
               <p className="text-xs text-gray-400 mt-2">
-                Paste the URL to your Teams meeting recording or transcript
+                Use "Action item 1:", "Action item 2:" format to separate different tickets
               </p>
             </div>
           )}
@@ -301,7 +304,7 @@ export default function MOMTranscriptionPage() {
                   <input
                     id="file-upload"
                     type="file"
-                    accept=".txt,.mp3,.wav,.m4a,.mp4,audio/*,text/plain"
+                    accept=".txt,.vtt,.docx,.mp3,.wav,.m4a,.mp4,audio/*,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
@@ -316,27 +319,28 @@ export default function MOMTranscriptionPage() {
                 )}
               </div>
               <p className="text-xs text-gray-400 mt-2">
-                Supported formats: Audio (.mp3, .wav, .m4a) or Text (.txt)
+                Supported formats: Audio (.mp3, .wav, .m4a), Text (.txt), Subtitles (.vtt), or Documents (.docx)
               </p>
             </div>
           )}
 
-          {/* Text Input */}
-          {inputMethod === 'text' && (
+          {/* URL Input */}
+          {inputMethod === 'url' && (
             <div className="mb-4">
-              <label htmlFor="transcription" className="block text-sm font-medium text-gray-300 mb-2">
-                Paste Transcription Text
+              <label htmlFor="meeting-url" className="block text-sm font-medium text-gray-300 mb-2">
+                Meeting Recording URL
               </label>
-              <textarea
-                id="transcription"
-                value={transcriptionText}
-                onChange={(e) => setTranscriptionText(e.target.value)}
-                placeholder="Paste your Teams meeting transcript here...&#10;&#10;Example format:&#10;Action item 1: Fix the login API that's not working&#10;Action item 2: Investigate the database connection timeout issue"
-                className="w-full h-60 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none text-gray-200 placeholder-gray-500 font-mono text-sm"
+              <input
+                id="meeting-url"
+                type="url"
+                value={meetingUrl}
+                onChange={(e) => setMeetingUrl(e.target.value)}
+                placeholder="https://teams.microsoft.com/l/meetup-join/..."
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-200 placeholder-gray-500"
                 disabled={isProcessing}
               />
               <p className="text-xs text-gray-400 mt-2">
-                Use "Action item 1:", "Action item 2:" format to separate different tickets
+                Paste the URL to your Teams meeting recording or transcript
               </p>
             </div>
           )}

@@ -10,6 +10,7 @@ interface TicketToCreate {
   storyPoints: number;
   assignee?: string;
   actionItemNumber: number;
+  recommendedAssignee?: string;
 }
 
 interface MeetingMetadata {
@@ -69,6 +70,62 @@ export async function POST(request: NextRequest) {
     const cloudId = resources[0].id;
     const createdTickets: { key: string; index: number }[] = [];
 
+    // Fetch Jira fields to find the Recommended Assignee field ID
+    let recommendedAssigneeFieldId = null;
+    try {
+      const fieldsResponse = await fetch(
+        `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/field`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.accessToken}`,
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (fieldsResponse.ok) {
+        const fields = await fieldsResponse.json();
+        const recommendedAssigneeField = fields.find((field: any) => 
+          field.name && field.name.toLowerCase().includes('recommended assignee')
+        );
+        if (recommendedAssigneeField) {
+          recommendedAssigneeFieldId = recommendedAssigneeField.id;
+        }
+      }
+    } catch (e) {
+      console.log('Could not fetch field metadata, will skip custom field');
+    }
+
+    // Fetch auto-assignee suggestions for all tickets
+    const ticketsWithAssignees = await Promise.all(
+      tickets.map(async (ticket) => {
+        try {
+          const assigneeResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auto-asignee`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              summary: ticket.summary,
+              description: ticket.description,
+              issueType: ticket.type,
+            }),
+          });
+
+          if (assigneeResponse.ok) {
+            const assigneeData = await assigneeResponse.json();
+            return {
+              ...ticket,
+              recommendedAssignee: assigneeData.recommendedAssignee !== 'Unassigned' ? assigneeData.recommendedAssignee : undefined,
+            };
+          }
+        } catch (error) {
+          console.log('Failed to get assignee suggestion for ticket:', ticket.summary);
+        }
+        return ticket;
+      })
+    );
+
     // Create meeting metadata description
     const meetingInfo = metadata ? `
 *Meeting Information:*
@@ -79,8 +136,8 @@ ${metadata.participants ? `Participants: ${metadata.participants.join(', ')}` : 
 ` : '';
 
     // Create all tickets
-    for (let i = 0; i < tickets.length; i++) {
-      const ticket = tickets[i];
+    for (let i = 0; i < ticketsWithAssignees.length; i++) {
+      const ticket = ticketsWithAssignees[i];
       
       // Map issue type to Jira's expected format
       let issueType = ticket.type;
@@ -94,7 +151,7 @@ ${metadata.participants ? `Participants: ${metadata.participants.join(', ')}` : 
         issueType = 'Task';
       }
 
-      const issueData = {
+      const issueData: any = {
         fields: {
           project: {
             key: 'SCRUM',
@@ -124,6 +181,14 @@ ${metadata.participants ? `Participants: ${metadata.participants.join(', ')}` : 
           labels: ticket.storyPoints ? [`sp-${ticket.storyPoints}`] : [], // Story Points in labels
         },
       };
+
+      // Add recommended assignee to the custom field if available
+      if (ticket.recommendedAssignee && recommendedAssigneeFieldId) {
+        issueData.fields[recommendedAssigneeFieldId] = ticket.recommendedAssignee;
+        // Also add as a label for easy filtering
+        const assigneeLabel = `recommended-${ticket.recommendedAssignee.replace(/\s+/g, '-').toLowerCase()}`;
+        issueData.fields.labels = [...(issueData.fields.labels || []), assigneeLabel];
+      }
 
       // Add assignee if specified
       if (ticket.assignee) {

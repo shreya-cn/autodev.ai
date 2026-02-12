@@ -56,8 +56,25 @@ export async function POST(request: NextRequest) {
       } else if (fileType?.includes('text') || fileName?.endsWith('.txt')) {
         // Text file
         transcriptText = buffer.toString('utf-8');
+      } else if (fileName?.endsWith('.vtt')) {
+        // WebVTT subtitle file - extract text and remove timing codes
+        const vttContent = buffer.toString('utf-8');
+        // Remove WEBVTT header and timing codes
+        transcriptText = vttContent
+          .split('\n')
+          .filter(line => !line.startsWith('WEBVTT') && !line.match(/^\d{2}:\d{2}:\d{2}\.\d{3}/) && !line.includes('-->'))
+          .filter(line => line.trim().length > 0)
+          .join('\n');
+      } else if (fileName?.endsWith('.docx') || fileType?.includes('wordprocessingml')) {
+        // DOCX file - for now, try to extract as text
+        // Note: This is a basic implementation. For better results, consider using a library like 'mammoth'
+        try {
+          transcriptText = buffer.toString('utf-8');
+        } catch (error) {
+          throw new Error('Failed to read .docx file. Please copy and paste the content as text instead.');
+        }
       } else {
-        throw new Error('Unsupported file type. Please upload audio (.mp3, .wav, .m4a) or text (.txt) files.');
+        throw new Error('Unsupported file type. Please upload audio (.mp3, .wav, .m4a), text (.txt), subtitles (.vtt), or Word documents (.docx).');
       }
     } else if (url) {
       // URL handling - for now, return error as we need specific Teams API integration
