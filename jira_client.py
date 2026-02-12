@@ -7,13 +7,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-JIRA_BASE_URL = os.getenv("JIRA_BASE")
-JIRA_EMAIL = os.getenv("JIRA_EMAIL")
-JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN_SUPP")
+JIRA_BASE_URL = os.getenv("JIRA_BASE") or os.getenv("JIRA_URL")
+JIRA_EMAIL = os.getenv("JIRA_EMAIL") or os.getenv("JIRA_USERNAME")
+JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN_SUPP") or os.getenv("JIRA_API_TOKEN")
 JIRA_PROJECT_KEY = os.getenv("CONFLUENCE_PROJECT_KEY")
 
-if not all([JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT_KEY]):
-    raise RuntimeError("Missing Jira configuration in .env")
+missing = [
+    name
+    for name, value in {
+        "JIRA_BASE/JIRA_URL": JIRA_BASE_URL,
+        "JIRA_EMAIL/JIRA_USERNAME": JIRA_EMAIL,
+        "JIRA_API_TOKEN_SUPP/JIRA_API_TOKEN": JIRA_API_TOKEN,
+        "CONFLUENCE_PROJECT_KEY": JIRA_PROJECT_KEY,
+    }.items()
+    if not value
+]
+
+if missing:
+    missing_list = ", ".join(missing)
+    raise RuntimeError(f"Missing Jira configuration in .env: {missing_list}")
 
 # ---------------- AUTH ---------------- #
 
