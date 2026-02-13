@@ -5,6 +5,7 @@ import OpenAI from "openai";
 const JIRA_BASE = process.env.JIRA_URL!;
 const JIRA_EMAIL = process.env.JIRA_USER!;
 const JIRA_TOKEN = process.env.JIRA_API_TOKEN!;
+const JIRA_PROJECT = process.env.JIRA_PROJECT || 'SCRUM';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -15,7 +16,7 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 async function fetchDoneIssueKeys(limit = 50) {
   const jql = `
-    project = SCRUM
+    project = ${JIRA_PROJECT}
     AND status = "Done"
     ORDER BY resolved DESC
   `;
@@ -173,6 +174,20 @@ If no good match exists, set topAssignee to "Unassigned" with matchLevel "Low".
 
 export async function POST(req: Request) {
   try {
+    // Validate environment variables
+    if (!JIRA_BASE || !JIRA_EMAIL || !JIRA_TOKEN || !OPENAI_API_KEY) {
+      return NextResponse.json(
+        { 
+          error: "Missing environment variables. Please configure JIRA_URL, JIRA_USER, JIRA_API_TOKEN, and OPENAI_API_KEY in your .env.local file.",
+          recommendedAssignee: "Unassigned",
+          matchLevel: "Low",
+          reason: "Unable to suggest assignee - environment not configured",
+          alternatives: []
+        },
+        { status: 500 }
+      );
+    }
+
     const body = await req.json();
 
     const doneIssueKeys = await fetchDoneIssueKeys();

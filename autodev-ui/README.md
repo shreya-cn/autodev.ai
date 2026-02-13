@@ -2,7 +2,28 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+### 1. Environment Setup (Important!)
+
+Each team member needs their own credentials. **Never share your `.env.local` file.**
+
+```bash
+# Copy the example file
+cp .env.example .env.local
+
+# Edit .env.local with your own credentials:
+# - JIRA_URL, JIRA_USER, JIRA_API_TOKEN, JIRA_PROJECT
+# - OPENAI_API_KEY
+```
+
+📖 **See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for detailed setup instructions**
+
+### 2. Install Dependencies
+
+```bash
+npm install
+```
+
+### 3. Run the Development Server
 
 ```bash
 npm run dev
