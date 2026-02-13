@@ -1,29 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
+import { usePathname } from 'next/navigation';
 
 export default function Header() {
-  const [activeTab, setActiveTab] = useState('jira');
+  const pathname = usePathname();
+  const [activeTab, setActiveTab] = useState('ticket-generator');
   const [showDropdown, setShowDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { data: session } = useSession();
+
+  const navLinks = [
+    { href: '/ticket-generator', label: 'Ticket Generator', id: 'ticket-generator', title: 'AI-Powered Ticket Generator' },
+    { href: '/sprint-planning', label: 'Sprint Planning', id: 'sprint-planning', title: 'Sprint Planning (PO View)' },
+    { href: '/', label: 'Jira Board', id: 'jira' },
+    { href: '/documentation', label: 'Documentation', id: 'documentation' },
+    { href: '/support-dashboard', label: 'Support', id: 'support-dashboard', title: 'AI Support Ticket Analyzer' },
+    { href: '/support-analytics', label: 'Analytics', id: 'support-analytics', title: 'Support Issues Analytics' },
+    { href: '/knowledge-base', label: 'KB', id: 'knowledge-base', icon: true, title: 'Knowledge Base - Ask questions about your codebase' },
+  ];
+
+  useEffect(() => {
+    // Determine active tab based on current pathname
+    const currentLink = navLinks.find(link => {
+      if (link.href === '/') {
+        return pathname === '/';
+      }
+      return pathname?.startsWith(link.href);
+    });
+    if (currentLink) {
+      setActiveTab(currentLink.id);
+    }
+  }, [pathname]);
 
   if (!session) return null;
 
   const user = session.user;
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
-
-  const navLinks = [
-    { href: '/', label: 'Jira Board', id: 'jira' },
-    { href: '/sprint-planning', label: 'Sprint Planning', id: 'sprint-planning', title: 'Sprint Planning (PO View)' },
-    { href: '/documentation', label: 'Documentation', id: 'documentation' },
-    { href: '/ticket-generator', label: 'Ticket Generator', id: 'ticket-generator', title: 'AI-Powered Ticket Generator' },
-    { href: '/support-dashboard', label: 'Support', id: 'support-dashboard', title: 'AI Support Ticket Analyzer' },
-    { href: '/support-analytics', label: 'Analytics', id: 'support-analytics', title: 'Support Issues Analytics' },
-    { href: '/knowledge-base', label: 'KB', id: 'knowledge-base', icon: true, title: 'Knowledge Base - Ask questions about your codebase' },
-  ];
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-md">

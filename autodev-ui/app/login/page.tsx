@@ -14,7 +14,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn('atlassian', { 
-        callbackUrl: '/',
+        callbackUrl: '/ticket-generator',
         redirect: true 
       });
     } catch (error) {

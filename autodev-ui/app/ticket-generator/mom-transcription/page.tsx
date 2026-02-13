@@ -7,12 +7,17 @@ import { useState } from 'react';
 interface ExtractedTicket {
   summary: string;
   description: string;
+  acceptanceCriteria: string[];
   priority: 'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest';
   type: 'Story' | 'Bug' | 'Task' | 'Epic';
   storyPoints: number;
   assignee?: string;
   selected: boolean;
   actionItemNumber: number;
+  recommendedAssignee?: string;
+  assigneeMatchLevel?: string;
+  assigneeReason?: string;
+  assigneeAlternatives?: string[];
 }
 
 interface MeetingMetadata {
@@ -24,11 +29,12 @@ interface MeetingMetadata {
 
 export default function MOMTranscriptionPage() {
   const { data: session, status } = useSession();
-  const [inputMethod, setInputMethod] = useState<'url' | 'file' | 'text'>('url');
+  const [inputMethod, setInputMethod] = useState<'url' | 'file' | 'text'>('text');
   const [meetingUrl, setMeetingUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [transcriptionText, setTranscriptionText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isFetchingAssignees, setIsFetchingAssignees] = useState(false);
   const [extractedTickets, setExtractedTickets] = useState<ExtractedTicket[]>([]);
   const [meetingMetadata, setMeetingMetadata] = useState<MeetingMetadata | null>(null);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -46,15 +52,17 @@ export default function MOMTranscriptionPage() {
       setFile(selectedFile);
       setError('');
       
-      // Read file content if it's a text file
-      if (selectedFile.type === 'text/plain' || selectedFile.name.endsWith('.txt')) {
+      // Read file content if it's a plain text file (.txt or .vtt only)
+      // Don't try to read .docx as text - it's a binary format
+      if (selectedFile.type === 'text/plain' || selectedFile.name.endsWith('.txt') || selectedFile.name.endsWith('.vtt')) {
         const reader = new FileReader();
         reader.onload = (event) => {
           setTranscriptionText(event.target?.result as string || '');
         };
         reader.readAsText(selectedFile);
       } else {
-        // For audio files, we'll send to API for transcription
+        // For audio files and .docx, we'll send to API for processing
+        // Clear the text field since we can't preview it
         setTranscriptionText('');
       }
     }
@@ -85,17 +93,27 @@ export default function MOMTranscriptionPage() {
       if (inputMethod === 'url') {
         requestBody = { url: meetingUrl };
       } else if (inputMethod === 'file') {
-        // Convert file to base64 for API
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file!);
-        });
-        requestBody = { 
-          file: base64, 
-          fileName: file!.name,
-          fileType: file!.type 
-        };
+        // For text-based files that were already read (.txt, .vtt), use the transcription text directly
+        const isTextFile = (file!.type === 'text/plain' || file!.name.endsWith('.txt') || file!.name.endsWith('.vtt'));
+        
+        if (isTextFile && transcriptionText.trim()) {
+          // Use the already-read text content
+          console.log('Using pre-read text content, length:', transcriptionText.length);
+          requestBody = { transcription: transcriptionText };
+        } else {
+          // Convert file to base64 for API (audio files and .docx)
+          console.log('Converting file to base64 for API:', file!.name);
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(file!);
+          });
+          requestBody = { 
+            file: base64, 
+            fileName: file!.name,
+            fileType: file!.type 
+          };
+        }
       } else {
         requestBody = { transcription: transcriptionText };
       }
@@ -108,20 +126,75 @@ export default function MOMTranscriptionPage() {
         body: JSON.stringify(requestBody),
       });
 
+      console.log('API Response Status:', response.status);
+
       if (!response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+        console.error('API Error:', data);
         throw new Error(data.error || 'Failed to process transcription');
       }
 
       const data = await response.json();
-      setExtractedTickets(data.tickets.map((t: any) => ({ ...t, selected: true })));
+      console.log('API Response Data:', data);
+      
+      if (!data.tickets || data.tickets.length === 0) {
+        throw new Error('No action items found in the transcript. Please ensure the text contains clear action items.');
+      }
+      
+      const ticketsWithSelection = data.tickets.map((t: any) => ({ ...t, selected: true }));
+      setExtractedTickets(ticketsWithSelection);
       setMeetingMetadata(data.metadata || null);
       setRelatedTickets(data.relatedTickets || []);
+      
+      // Fetch assignee suggestions for all tickets in parallel
+      setIsFetchingAssignees(true);
+      console.log('Fetching assignee suggestions for', ticketsWithSelection.length, 'tickets...');
+      try {
+        const assigneeSuggestions = await Promise.all(
+          ticketsWithSelection.map(async (ticket: ExtractedTicket) => {
+            try {
+              const response = await fetch('/api/auto-asignee', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  summary: ticket.summary,
+                  description: ticket.description,
+                  issueType: ticket.type,
+                }),
+              });
+              if (response.ok) {
+                return await response.json();
+              }
+              return null;
+            } catch (err) {
+              console.error('Failed to fetch assignee for ticket:', ticket.summary, err);
+              return null;
+            }
+          })
+        );
+        
+        // Update tickets with assignee suggestions
+        const ticketsWithAssignees = ticketsWithSelection.map((ticket: ExtractedTicket, idx: number) => ({
+          ...ticket,
+          recommendedAssignee: assigneeSuggestions[idx]?.recommendedAssignee,
+          assigneeMatchLevel: assigneeSuggestions[idx]?.matchLevel,
+          assigneeReason: assigneeSuggestions[idx]?.reason,
+          assigneeAlternatives: assigneeSuggestions[idx]?.alternatives,
+        }));
+        setExtractedTickets(ticketsWithAssignees);
+        console.log('Assignee suggestions fetched successfully');
+      } catch (err) {
+        console.error('Error fetching assignee suggestions:', err);
+        // Continue without assignee suggestions
+      } finally {
+        setIsFetchingAssignees(false);
+      }
       
       if (data.relatedTickets && data.relatedTickets.length > 0) {
         setShowLinkDialog(true);
       }
     } catch (err) {
+      console.error('Error in handleProcessTranscription:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsProcessing(false);
@@ -216,19 +289,19 @@ export default function MOMTranscriptionPage() {
           {/* Input Method Selector */}
           <div className="flex gap-4 mb-6">
             <button
-              onClick={() => setInputMethod('url')}
+              onClick={() => setInputMethod('text')}
               className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-                inputMethod === 'url'
+                inputMethod === 'text'
                   ? 'bg-gray-700 text-white border-2'
                   : 'bg-gray-800 text-gray-400 border border-gray-600 hover:bg-gray-700'
               }`}
-              style={inputMethod === 'url' ? {borderColor: '#b9ff66'} : {}}
+              style={inputMethod === 'text' ? {borderColor: '#b9ff66'} : {}}
             >
               <div className="flex items-center justify-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Meeting URL
+                Paste Text
               </div>
             </button>
             <button
@@ -248,40 +321,39 @@ export default function MOMTranscriptionPage() {
               </div>
             </button>
             <button
-              onClick={() => setInputMethod('text')}
+              onClick={() => setInputMethod('url')}
               className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-                inputMethod === 'text'
+                inputMethod === 'url'
                   ? 'bg-gray-700 text-white border-2'
                   : 'bg-gray-800 text-gray-400 border border-gray-600 hover:bg-gray-700'
               }`}
-              style={inputMethod === 'text' ? {borderColor: '#b9ff66'} : {}}
+              style={inputMethod === 'url' ? {borderColor: '#b9ff66'} : {}}
             >
               <div className="flex items-center justify-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
-                Paste Text
+                Meeting URL
               </div>
             </button>
           </div>
 
-          {/* URL Input */}
-          {inputMethod === 'url' && (
+          {/* Text Input */}
+          {inputMethod === 'text' && (
             <div className="mb-4">
-              <label htmlFor="meeting-url" className="block text-sm font-medium text-gray-300 mb-2">
-                Meeting Recording URL
+              <label htmlFor="transcription" className="block text-sm font-medium text-gray-300 mb-2">
+                Paste Transcription Text
               </label>
-              <input
-                id="meeting-url"
-                type="url"
-                value={meetingUrl}
-                onChange={(e) => setMeetingUrl(e.target.value)}
-                placeholder="https://teams.microsoft.com/l/meetup-join/..."
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-200 placeholder-gray-500"
+              <textarea
+                id="transcription"
+                value={transcriptionText}
+                onChange={(e) => setTranscriptionText(e.target.value)}
+                placeholder="Paste your Teams meeting transcript here...&#10;&#10;Example format:&#10;Action item 1: Fix the login API that's not working&#10;Action item 2: Investigate the database connection timeout issue"
+                className="w-full h-60 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none text-gray-200 placeholder-gray-500 font-mono text-sm"
                 disabled={isProcessing}
               />
               <p className="text-xs text-gray-400 mt-2">
-                Paste the URL to your Teams meeting recording or transcript
+                Use "Action item 1:", "Action item 2:" format to separate different tickets
               </p>
             </div>
           )}
@@ -301,7 +373,7 @@ export default function MOMTranscriptionPage() {
                   <input
                     id="file-upload"
                     type="file"
-                    accept=".txt,.mp3,.wav,.m4a,.mp4,audio/*,text/plain"
+                    accept=".txt,.vtt,.docx,.mp3,.wav,.m4a,.mp4,audio/*,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
@@ -316,27 +388,28 @@ export default function MOMTranscriptionPage() {
                 )}
               </div>
               <p className="text-xs text-gray-400 mt-2">
-                Supported formats: Audio (.mp3, .wav, .m4a) or Text (.txt)
+                Supported formats: Audio (.mp3, .wav, .m4a), Text (.txt), Subtitles (.vtt), or Documents (.docx)
               </p>
             </div>
           )}
 
-          {/* Text Input */}
-          {inputMethod === 'text' && (
+          {/* URL Input */}
+          {inputMethod === 'url' && (
             <div className="mb-4">
-              <label htmlFor="transcription" className="block text-sm font-medium text-gray-300 mb-2">
-                Paste Transcription Text
+              <label htmlFor="meeting-url" className="block text-sm font-medium text-gray-300 mb-2">
+                Meeting Recording URL
               </label>
-              <textarea
-                id="transcription"
-                value={transcriptionText}
-                onChange={(e) => setTranscriptionText(e.target.value)}
-                placeholder="Paste your Teams meeting transcript here...&#10;&#10;Example format:&#10;Action item 1: Fix the login API that's not working&#10;Action item 2: Investigate the database connection timeout issue"
-                className="w-full h-60 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none text-gray-200 placeholder-gray-500 font-mono text-sm"
+              <input
+                id="meeting-url"
+                type="url"
+                value={meetingUrl}
+                onChange={(e) => setMeetingUrl(e.target.value)}
+                placeholder="https://teams.microsoft.com/l/meetup-join/..."
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-200 placeholder-gray-500"
                 disabled={isProcessing}
               />
               <p className="text-xs text-gray-400 mt-2">
-                Use "Action item 1:", "Action item 2:" format to separate different tickets
+                Paste the URL to your Teams meeting recording or transcript
               </p>
             </div>
           )}
@@ -362,7 +435,7 @@ export default function MOMTranscriptionPage() {
         </div>
 
         {/* Meeting Metadata */}
-        {meetingMetadata && (
+        {meetingMetadata && (meetingMetadata.date || meetingMetadata.time || meetingMetadata.duration || (meetingMetadata.participants && meetingMetadata.participants.length > 0)) && (
           <div className="bg-gray-900 border border-green-500/20 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
               <svg className="w-4 h-4" style={{color: '#b9ff66'}} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -409,7 +482,7 @@ export default function MOMTranscriptionPage() {
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-blue-400 mb-2">Related Tickets Detected</h3>
                 <p className="text-gray-300 mb-4">
-                  We found {relatedTickets.length} group(s) of related action items from this meeting. Would you like to link them together in Jira?
+                  We found {relatedTickets.length} group(s) of related action items with direct technical dependencies (blocking relationships, same component modifications, or breaking changes that must deploy together). Would you like to link them in Jira?
                 </p>
                 <div className="mb-4 space-y-2">
                   {relatedTickets.map((group, idx) => (
@@ -491,6 +564,16 @@ export default function MOMTranscriptionPage() {
                   : `Create ${extractedTickets.filter(t => t.selected).length} Ticket(s)`}
               </button>
             </div>
+            
+            {isFetchingAssignees && (
+              <div className="mb-4 px-4 py-3 bg-green-900/20 border border-green-500/50 rounded-lg flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span className="text-green-300 text-sm">Fetching assignee suggestions...</span>
+              </div>
+            )}
 
             <div className="space-y-4">
               {extractedTickets.map((ticket, index) => (
@@ -522,6 +605,18 @@ export default function MOMTranscriptionPage() {
                       </div>
                       <h3 className="text-lg font-semibold text-white mb-2">{ticket.summary}</h3>
                       <p className="text-gray-300 text-sm mb-3">{ticket.description}</p>
+                      
+                      {/* Acceptance Criteria */}
+                      {ticket.acceptanceCriteria && ticket.acceptanceCriteria.length > 0 && (
+                        <div className="mb-3">
+                          <h4 className="text-sm font-semibold text-gray-400 mb-2">Acceptance Criteria:</h4>
+                          <ul className="list-disc list-inside space-y-1">
+                            {ticket.acceptanceCriteria.map((criteria, idx) => (
+                              <li key={idx} className="text-gray-300 text-sm">{criteria}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       
                       {/* Type and Priority Selectors */}
                       <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -556,8 +651,58 @@ export default function MOMTranscriptionPage() {
 
                         {ticket.assignee && (
                           <span className="px-3 py-1 bg-purple-900/40 text-purple-300 border border-purple-500/50 rounded-full text-xs">
-                            Assignee: {ticket.assignee}
+                            Mentioned: {ticket.assignee}
                           </span>
+                        )}
+                        
+                        {ticket.recommendedAssignee && (
+                          <div className="relative group">
+                            <div className="flex items-center gap-2 px-3 py-1 rounded border border-gray-600 bg-gray-800 cursor-help">
+                              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-300">{ticket.recommendedAssignee}</span>
+                                {ticket.assigneeMatchLevel && (
+                                  <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400 border border-gray-600">
+                                    {ticket.assigneeMatchLevel}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Tooltip */}
+                            {ticket.assigneeReason && (
+                              <div className="absolute bottom-full left-0 mb-2 w-80 bg-gray-900 border border-gray-700 rounded-lg p-4 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                                <div className="space-y-3">
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-400 mb-1">Reason:</p>
+                                    <p className="text-sm text-gray-300">{ticket.assigneeReason}</p>
+                                  </div>
+                                  
+                                  {ticket.assigneeAlternatives && ticket.assigneeAlternatives.length > 0 && (
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-400 mb-2">Alternatives:</p>
+                                      <div className="space-y-2">
+                                        {ticket.assigneeAlternatives.slice(0, 2).map((alt: any, idx: number) => (
+                                          <div key={idx} className="text-sm">
+                                            <span className="text-gray-300 font-medium">{alt.name}</span>
+                                            <span className="text-xs text-gray-500 ml-2">({alt.matchLevel})</span>
+                                            {alt.reason && (
+                                              <p className="text-xs text-gray-400 mt-0.5">{alt.reason}</p>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Tooltip arrow */}
+                                <div className="absolute top-full left-4 w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-gray-900"></div>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

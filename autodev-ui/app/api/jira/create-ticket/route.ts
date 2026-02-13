@@ -11,6 +11,14 @@ interface CreateTicketRequest {
   relatedComponents: string[];
   technicalNotes: string;
   storyPoints: number;
+  recommendedAssignee?: string;
+  assigneeMatchLevel?: string;
+  assigneeReason?: string;
+  assigneeAlternatives?: Array<{
+    name: string;
+    matchLevel: string;
+    reason: string;
+  }>;
   subtasks?: Array<{
     summary: string;
     description: string;
@@ -69,6 +77,32 @@ export async function POST(request: Request) {
 
     const cloudId = resources[0].id;
 
+    // Fetch Jira fields to find the Recommended Assignee field ID
+    let recommendedAssigneeFieldId = null;
+    try {
+      const fieldsResponse = await fetch(
+        `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/field`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.accessToken}`,
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (fieldsResponse.ok) {
+        const fields = await fieldsResponse.json();
+        const recommendedAssigneeField = fields.find((field: any) => 
+          field.name && field.name.toLowerCase().includes('recommended assignee')
+        );
+        if (recommendedAssigneeField) {
+          recommendedAssigneeFieldId = recommendedAssigneeField.id;
+        }
+      }
+    } catch (e) {
+      console.log('Could not fetch field metadata, will skip custom field');
+    }
+
     // Build the description with all sections
     let fullDescription = ticketData.description;
 
@@ -93,7 +127,7 @@ export async function POST(request: Request) {
     }
 
     // Create Jira ticket payload
-    const issuePayload = {
+    const issuePayload: any = {
       fields: {
         project: {
           key: 'SCRUM' // Update this to match your project key
@@ -123,6 +157,19 @@ export async function POST(request: Request) {
         labels: ticketData.storyPoints ? [`sp-${ticketData.storyPoints}`] : []
       }
     };
+
+    // Add recommended assignee to the custom field if available
+    if (ticketData.recommendedAssignee && 
+        ticketData.recommendedAssignee !== 'Unassigned' && 
+        recommendedAssigneeFieldId) {
+      
+      // Set the Recommended Assignee field (keep it simple to stay under 255 char limit)
+      issuePayload.fields[recommendedAssigneeFieldId] = ticketData.recommendedAssignee;
+      
+      // Also add as a label for easy filtering
+      const assigneeLabel = `recommended-${ticketData.recommendedAssignee.replace(/\s+/g, '-').toLowerCase()}`;
+      issuePayload.fields.labels = [...(issuePayload.fields.labels || []), assigneeLabel];
+    }
 
     // Create the issue in Jira
     const createResponse = await fetch(
