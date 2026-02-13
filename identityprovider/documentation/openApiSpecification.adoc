@@ -28,11 +28,11 @@ paths:
               $ref: '#/components/schemas/User'
             examples:
               user:
-                summary: New User
+                summary: Example User
                 value:
-                  username: "newuser"
-                  email: "newuser@example.com"
-                  password: "password123"
+                  username: "john_doe"
+                  email: "john.doe@example.com"
+                  passwordHash: "hashed_password"
       responses:
         '200':
           description: User registered successfully
@@ -40,8 +40,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
-        '400':
-          description: Invalid input
   /users/login:
     post:
       tags:
@@ -55,10 +53,10 @@ paths:
               $ref: '#/components/schemas/User'
             examples:
               user:
-                summary: Existing User
+                summary: Login credentials
                 value:
-                  username: "existinguser"
-                  password: "password123"
+                  username: "john_doe"
+                  passwordHash: "hashed_password"
       responses:
         '200':
           description: Login successful
@@ -66,8 +64,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-        '401':
-          description: Authentication failed
   /users/refreshtoken:
     post:
       tags:
@@ -81,10 +77,9 @@ paths:
               $ref: '#/components/schemas/User'
             examples:
               user:
-                summary: Existing User
+                summary: User data
                 value:
-                  username: "existinguser"
-                  password: "password123"
+                  username: "john_doe"
       responses:
         '200':
           description: Token refreshed successfully
@@ -92,8 +87,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-        '401':
-          description: Invalid token
+  /users/refreshtokens:
+    post:
+      tags:
+        - User
+      summary: Refresh multiple authentication tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+            examples:
+              user:
+                summary: User data
+                value:
+                  username: "john_doe"
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
 components:
   schemas:
     User:
@@ -102,48 +118,47 @@ components:
         id:
           type: integer
           format: int64
-          example: 1
         username:
           type: string
-          example: "user123"
         email:
           type: string
-          example: "user123@example.com"
-        password:
+        passwordHash:
           type: string
-          format: password
-          example: "password123"
         roles:
           type: array
           items:
             $ref: '#/components/schemas/Role'
       required:
         - username
-        - password
+        - email
+        - passwordHash
     Role:
       type: object
       properties:
         id:
           type: integer
           format: int64
-          example: 1
         name:
           type: string
-          example: "ADMIN"
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
     AuthResponse:
       type: object
       properties:
         accessToken:
           type: string
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
         refreshToken:
           type: string
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+      required:
+        - accessToken
+        - refreshToken
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 security:
-  - jwt: []
-securitySchemes:
-  jwt:
-    type: http
-    scheme: bearer
-    bearerFormat: JWT
+  - bearerAuth: []
 ----
