@@ -58,7 +58,7 @@ The script uses a `CONFIG` object to manage settings, including:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/Dinesh-s95/AutoDoc.ai.git
+   git clone https://github.com/shreya-cn/autodev.ai
    ```
 
 2. Navigate to the `autodoc-ai-mcp-server` directory:
