@@ -1,4 +1,4 @@
-# AutoDoc.ai Project
+# AutoDev.ai Project
 
 ## Quick Setup (For Developers)
 
@@ -25,7 +25,7 @@ Then start the services:
 
 ## Overview
 
-AutoDoc.ai is an AI-powered development automation platform that streamlines Jira ticket management, meeting documentation, and developer productivity. It combines OpenAI's GPT models with Jira integration to automate ticket generation, suggest assignees, and recommend related work—helping teams move faster from meetings to execution.
+AutoDev.ai is an AI-powered development automation platform that streamlines Jira ticket management, meeting documentation, and developer productivity. It combines OpenAI's GPT models with Jira integration to automate ticket generation, suggest assignees, and recommend related work—helping teams move faster from meetings to execution.
 
 ---
 
@@ -99,7 +99,7 @@ The project includes microservices for demonstration purposes, each with AI-gene
 - **Enrollment** (`enrollment/`) - User enrollment processes
 - **User Management** (`usermanagement/`) - User profile management
 - **Vehicle Management** (`vehiclemanagement/`) - Vehicle data operations
-- **AutoDoc.ai MCP Server** (`autodoc-ai-mcp-server/`) - Central documentation generation server
+- **AutoDev.ai MCP Server** (`autodoc-ai-mcp-server/`) - Central documentation generation server
 
 ---
 

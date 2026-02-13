@@ -1,8 +1,8 @@
-# AutoDoc.ai MCP Server
+# AutoDev.ai MCP Server
 
 ## Overview
 
-The AutoDoc.ai MCP (Model Context Protocol) Server is a powerful tool designed to automate the generation of documentation for microservices. It leverages OpenAI's GPT models to create AI-enhanced documentation and integrates with Jira for release notes generation. The server is built using TypeScript and provides a robust framework for managing documentation workflows.
+The AutoDev.ai MCP (Model Context Protocol) Server is a powerful tool designed to automate the generation of documentation for microservices. It leverages OpenAI's GPT models to create AI-enhanced documentation and integrates with Jira for release notes generation. The server is built using TypeScript and provides a robust framework for managing documentation workflows.
 
 ---
 
