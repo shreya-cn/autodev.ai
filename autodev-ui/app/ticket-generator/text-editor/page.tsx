@@ -31,6 +31,15 @@ export default function TextEditorTicketGenerator() {
   const [success, setSuccess] = useState("");
   const [showSubtaskDialog, setShowSubtaskDialog] = useState(false);
   const [createSubtasks, setCreateSubtasks] = useState(false);
+  const [selectedType, setSelectedType] = useState<'Story' | 'Bug' | 'Task' | 'Epic'>('Task');
+  const [selectedPriority, setSelectedPriority] = useState<'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest'>('Medium');
+  const [assigneeData, setAssigneeData] = useState<{
+    recommendedAssignee: string;
+    matchLevel: string;
+    reason: string;
+    alternatives: string[];
+  } | null>(null);
+  const [isFetchingAssignee, setIsFetchingAssignee] = useState(false);
 
   if (status === "unauthenticated") {
     redirect("/login");
@@ -63,6 +72,26 @@ export default function TextEditorTicketGenerator() {
 
       const data = await response.json();
       setGeneratedTicket(data);
+      
+      // Initialize type and priority from LLM suggestions
+      setSelectedType(data.suggestedType || 'Task');
+      setSelectedPriority(data.suggestedPriority || 'Medium');
+      
+      // Fetch assignee suggestion
+      setIsFetchingAssignee(true);
+      try {
+        const assigneeSuggestion = await generate({
+          summary: data.summary,
+          description: data.description,
+          issueType: data.suggestedType || 'Task',
+        });
+        setAssigneeData(assigneeSuggestion);
+      } catch (err) {
+        console.error('Failed to fetch assignee suggestion:', err);
+        setAssigneeData(null);
+      } finally {
+        setIsFetchingAssignee(false);
+      }
 
       // If story points > 8, ask about creating subtasks
       if (data.storyPoints > 8 && data.subtasks && data.subtasks.length > 0) {
@@ -106,11 +135,15 @@ export default function TextEditorTicketGenerator() {
     setError("");
     setSuccess("");
     
-    const autoAssigneeData = await generate({
-      summary: generatedTicket.summary,
-      description: generatedTicket.description,
-      issueType: generatedTicket.suggestedType,
-    });
+    // Use cached assignee data if available, otherwise fetch it
+    let autoAssigneeData = assigneeData;
+    if (!autoAssigneeData) {
+      autoAssigneeData = await generate({
+        summary: generatedTicket.summary,
+        description: generatedTicket.description,
+        issueType: selectedType,
+      });
+    }
 
     try {
       const response = await fetch("/api/jira/create-ticket", {
@@ -120,6 +153,8 @@ export default function TextEditorTicketGenerator() {
         },
         body: JSON.stringify({
           ...generatedTicket,
+          suggestedType: selectedType,
+          suggestedPriority: selectedPriority,
           createSubtasks,
           recommendedAssignee: autoAssigneeData.recommendedAssignee,
           assigneeMatchLevel: autoAssigneeData.matchLevel,
@@ -248,33 +283,89 @@ export default function TextEditorTicketGenerator() {
               <h2 className="text-2xl font-bold text-white">
                 Generated Ticket
               </h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="px-3 py-1 rounded-full text-sm font-semibold bg-gray-800 text-gray-300 border border-gray-600">
                   {generatedTicket.storyPoints} SP
                 </span>
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                    generatedTicket.suggestedType === "Bug"
-                      ? "bg-red-900/40 text-red-300 border border-red-500/50"
-                      : generatedTicket.suggestedType === "Story"
-                        ? "bg-blue-900/40 text-blue-300 border border-blue-500/50"
-                        : generatedTicket.suggestedType === "Epic"
-                          ? "bg-purple-900/40 text-purple-300 border border-purple-500/50"
-                          : "bg-gray-800 text-gray-300 border border-gray-600"
-                  }`}
-                >
-                  {generatedTicket.suggestedType}
-                </span>
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                    generatedTicket.suggestedPriority === "Highest" ||
-                    generatedTicket.suggestedPriority === "High"
-                      ? "bg-orange-900/40 text-orange-300 border border-orange-500/50"
-                      : "bg-yellow-900/40 text-yellow-300 border border-yellow-500/50"
-                  }`}
-                >
-                  {generatedTicket.suggestedPriority}
-                </span>
+                
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500">Type:</label>
+                  <select
+                    value={selectedType}
+                    onChange={(e) => setSelectedType(e.target.value as any)}
+                    className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded border border-gray-600 focus:ring-1 focus:ring-green-500"
+                  >
+                    <option value="Task">Task</option>
+                    <option value="Story">Story</option>
+                    <option value="Bug">Bug</option>
+                    <option value="Epic">Epic</option>
+                  </select>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500">Priority:</label>
+                  <select
+                    value={selectedPriority}
+                    onChange={(e) => setSelectedPriority(e.target.value as any)}
+                    className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded border border-gray-600 focus:ring-1 focus:ring-green-500"
+                  >
+                    <option value="Lowest">Lowest</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Highest">Highest</option>
+                  </select>
+                </div>
+                
+                {isFetchingAssignee && (
+                  <span className="text-xs text-gray-500">Fetching assignee...</span>
+                )}
+                
+                {assigneeData && !isFetchingAssignee && (
+                  <div className="relative group">
+                    <div className="flex items-center gap-2 px-3 py-1 rounded border border-gray-600 bg-gray-800 cursor-help">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-300">{assigneeData.recommendedAssignee}</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400 border border-gray-600">
+                          {assigneeData.matchLevel}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full left-0 mb-2 w-80 bg-gray-900 border border-gray-700 rounded-lg p-4 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-400 mb-1">Reason:</p>
+                          <p className="text-sm text-gray-300">{assigneeData.reason}</p>
+                        </div>
+                        
+                        {assigneeData.alternatives && assigneeData.alternatives.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-gray-400 mb-2">Alternatives:</p>
+                            <div className="space-y-2">
+                              {assigneeData.alternatives.slice(0, 2).map((alt: any, idx: number) => (
+                                <div key={idx} className="text-sm">
+                                  <span className="text-gray-300 font-medium">{alt.name}</span>
+                                  <span className="text-xs text-gray-500 ml-2">({alt.matchLevel})</span>
+                                  {alt.reason && (
+                                    <p className="text-xs text-gray-400 mt-0.5">{alt.reason}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Tooltip arrow */}
+                      <div className="absolute top-full left-4 w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-gray-900"></div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

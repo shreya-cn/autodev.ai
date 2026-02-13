@@ -34,9 +34,11 @@ interface SortableTicketProps {
   assigningTicket: string | null;
   getAssigneeInitials: (name: string) => string;
   getAssigneeColor: (name: string) => string;
+  suggestedAssignees: Record<string, any>;
+  onFetchAssignee: (ticket: JiraTicket) => void;
 }
 
-function SortableTicketCard({ ticket, jiraBaseUrl, onTicketClick, onAssigneeClick, showAssigneeMenu, teamMembers, onAssignToUser, assigningTicket, getAssigneeInitials, getAssigneeColor }: SortableTicketProps) {
+function SortableTicketCard({ ticket, jiraBaseUrl, onTicketClick, onAssigneeClick, showAssigneeMenu, teamMembers, onAssignToUser, assigningTicket, getAssigneeInitials, getAssigneeColor, suggestedAssignees, onFetchAssignee }: SortableTicketProps) {
   const {
     attributes,
     listeners,
@@ -61,15 +63,17 @@ function SortableTicketCard({ ticket, jiraBaseUrl, onTicketClick, onAssigneeClic
       className="bg-gray-800 rounded-lg p-3 border-l-4 border-primary hover:shadow-md hover:bg-gray-700 transition cursor-grab active:cursor-grabbing relative"
     >
       <div className="flex items-start justify-between mb-2">
-        <span 
-          onClick={(e) => {
-            e.stopPropagation();
-            onTicketClick(ticket.key);
-          }}
-          className="text-xs font-semibold text-dark bg-primary px-2 py-1 rounded cursor-pointer hover:bg-opacity-80"
-        >
-          {ticket.key}
-        </span>
+        <div className="flex items-center gap-2">
+          <span 
+            onClick={(e) => {
+              e.stopPropagation();
+              onTicketClick(ticket.key);
+            }}
+            className="text-xs font-semibold text-dark bg-primary px-2 py-1 rounded cursor-pointer hover:bg-opacity-80"
+          >
+            {ticket.key}
+          </span>
+        </div>
       </div>
       <h4 className="text-sm font-medium text-gray-200 mb-2 line-clamp-2">
         {ticket.summary}
@@ -132,9 +136,11 @@ interface DroppableColumnProps {
   assigningTicket: string | null;
   getAssigneeInitials: (name: string) => string;
   getAssigneeColor: (name: string) => string;
+  suggestedAssignees: Record<string, any>;
+  onFetchAssignee: (ticket: JiraTicket) => void;
 }
 
-function DroppableColumn({ column, jiraBaseUrl, onTicketClick, onAssigneeClick, showAssigneeMenu, teamMembers, onAssignToUser, assigningTicket, getAssigneeInitials, getAssigneeColor }: DroppableColumnProps) {
+function DroppableColumn({ column, jiraBaseUrl, onTicketClick, onAssigneeClick, showAssigneeMenu, teamMembers, onAssignToUser, assigningTicket, getAssigneeInitials, getAssigneeColor, suggestedAssignees, onFetchAssignee }: DroppableColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
@@ -171,6 +177,8 @@ function DroppableColumn({ column, jiraBaseUrl, onTicketClick, onAssigneeClick, 
               assigningTicket={assigningTicket}
               getAssigneeInitials={getAssigneeInitials}
               getAssigneeColor={getAssigneeColor}
+              suggestedAssignees={suggestedAssignees}
+              onFetchAssignee={onFetchAssignee}
               />
             ))
           }
@@ -198,6 +206,7 @@ export default function JiraBoard() {
   const [activeTicket, setActiveTicket] = useState<JiraTicket | null>(null);
   const [showAssigneeMenu, setShowAssigneeMenu] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [suggestedAssignees, setSuggestedAssignees] = useState<Record<string, any>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -224,6 +233,30 @@ export default function JiraBoard() {
       }
     } catch (error) {
       console.error('Error fetching team members:', error);
+    }
+  };
+
+  const fetchAssigneeSuggestion = async (ticket: JiraTicket) => {
+    try {
+      const response = await fetch('/api/auto-asignee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: ticket.summary,
+          description: '',
+          issueType: 'Task'
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSuggestedAssignees(prev => ({
+          ...prev,
+          [ticket.key]: data
+        }));
+      }
+    } catch (error) {
+      console.error(`Failed to fetch assignee for ${ticket.key}:`, error);
     }
   };
 
@@ -581,6 +614,8 @@ export default function JiraBoard() {
               assigningTicket={assigningTicket}
               getAssigneeInitials={getAssigneeInitials}
               getAssigneeColor={getAssigneeColor}
+              suggestedAssignees={suggestedAssignees}
+              onFetchAssignee={fetchAssigneeSuggestion}
             />
           ))}
         </div>

@@ -5,12 +5,16 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 interface TicketToCreate {
   summary: string;
   description: string;
+  acceptanceCriteria: string[];
   priority: 'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest';
   type: 'Story' | 'Bug' | 'Task' | 'Epic';
   storyPoints: number;
   assignee?: string;
   actionItemNumber: number;
   recommendedAssignee?: string;
+  assigneeMatchLevel?: string;
+  assigneeReason?: string;
+  assigneeAlternatives?: string[];
 }
 
 interface MeetingMetadata {
@@ -96,9 +100,15 @@ export async function POST(request: NextRequest) {
       console.log('Could not fetch field metadata, will skip custom field');
     }
 
-    // Fetch auto-assignee suggestions for all tickets
+    // Fetch auto-assignee suggestions for tickets that don't already have them
     const ticketsWithAssignees = await Promise.all(
       tickets.map(async (ticket) => {
+        // Skip API call if assignee data is already present
+        if (ticket.recommendedAssignee) {
+          console.log('Using cached assignee for ticket:', ticket.summary);
+          return ticket;
+        }
+        
         try {
           const assigneeResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auto-asignee`, {
             method: 'POST',
@@ -117,6 +127,9 @@ export async function POST(request: NextRequest) {
             return {
               ...ticket,
               recommendedAssignee: assigneeData.recommendedAssignee !== 'Unassigned' ? assigneeData.recommendedAssignee : undefined,
+              assigneeMatchLevel: assigneeData.matchLevel,
+              assigneeReason: assigneeData.reason,
+              assigneeAlternatives: assigneeData.alternatives,
             };
           }
         } catch (error) {
@@ -166,7 +179,37 @@ ${metadata.participants ? `Participants: ${metadata.participants.join(', ')}` : 
                 content: [
                   {
                     type: 'text',
-                    text: `${ticket.description}\n\n${meetingInfo}\n*Action Item #${ticket.actionItemNumber}*`
+                    text: ticket.description
+                  }
+                ]
+              },
+              ...(ticket.acceptanceCriteria && ticket.acceptanceCriteria.length > 0 ? [
+                {
+                  type: 'paragraph',
+                  content: [
+                    {
+                      type: 'text',
+                      text: '\n\nAcceptance Criteria:',
+                      marks: [{ type: 'strong' }]
+                    }
+                  ]
+                },
+                ...ticket.acceptanceCriteria.map(criteria => ({
+                  type: 'paragraph',
+                  content: [
+                    {
+                      type: 'text',
+                      text: `• ${criteria}`
+                    }
+                  ]
+                }))
+              ] : []),
+              {
+                type: 'paragraph',
+                content: [
+                  {
+                    type: 'text',
+                    text: `\n\n${meetingInfo}\n*Action Item #${ticket.actionItemNumber}*`
                   }
                 ]
               }
